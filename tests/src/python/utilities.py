@@ -359,7 +359,7 @@ class DoxygenParser():
         self.acceptable_missing_brief = acceptable_missing_brief
         self.documentable_members = 0
         self.documented_members = 0
-        self.undocumented_string = ''
+        self.undocumented_members = {}
         self.bindable_members = []
         self.groups = {}
         self.classes_missing_group = []
@@ -453,11 +453,14 @@ class DoxygenParser():
 
                         unacceptable_undocumented = undocumented - set(acceptable_missing)
 
-                        if len(unacceptable_undocumented) > 0:
-                            self.undocumented_string += "Class {}, {}/{} members documented\n".format(class_name, documented, members)
-                            for u in unacceptable_undocumented:
-                                self.undocumented_string += ' Missing: {}\n'.format(u)
-                            self.undocumented_string += "\n"
+                        # do a case insensitive check too
+                        unacceptable_undocumented_insensitive = set([u.lower() for u in undocumented]) - set([u.lower() for u in acceptable_missing])
+
+                        if len(unacceptable_undocumented_insensitive) > 0:
+                            self.undocumented_members[class_name] = {}
+                            self.undocumented_members[class_name]['documented'] = documented
+                            self.undocumented_members[class_name]['members'] = members
+                            self.undocumented_members[class_name]['missing_members'] = unacceptable_undocumented
 
                         # store bindable members
                         if self.classElemIsBindable(elem):
@@ -542,12 +545,15 @@ class DoxygenParser():
         # test for "added in QGIS xxx" string
         d = e.find('detaileddescription')
         found_version_added = False
-        if d.find('para'):
-            for s in d.find('para').getiterator('simplesect'):
+        for para in d.getiterator('para'):
+            for s in para.getiterator('simplesect'):
                 if s.get('kind') == 'note':
                     for p in s.getiterator('para'):
                         if p.text and p.text.lower().startswith('added in'):
                             found_version_added = True
+                            break
+            if found_version_added:
+                break
 
         return documentable_members, documented_members, undocumented_members, bindable_members, has_brief_description, found_version_added
 

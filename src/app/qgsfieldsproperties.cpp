@@ -52,7 +52,6 @@ QgsFieldsProperties::QgsFieldsProperties( QgsVectorLayer *layer, QWidget* parent
     return;
 
   setupUi( this );
-  setupEditTypes();
 
   mSplitter->restoreState( QSettings().value( "/Windows/VectorLayerProperties/FieldsProperties/SplitState" ).toByteArray() );
 
@@ -324,7 +323,7 @@ void QgsFieldsProperties::setRow( int row, int idx, const QgsField& field )
 
   FieldConfig cfg( mLayer, idx );
   QPushButton *pb;
-  pb = new QPushButton( QgsEditorWidgetRegistry::instance()->name( cfg.mEditorWidgetV2Type ) );
+  pb = new QPushButton( QgsEditorWidgetRegistry::instance()->name( cfg.mEditorWidgetType ) );
   cfg.mButton = pb;
   mFieldsList->setCellWidget( row, attrEditTypeCol, pb );
 
@@ -337,11 +336,11 @@ void QgsFieldsProperties::setRow( int row, int idx, const QgsField& field )
 
   //published WMS/WFS attributes
   QTableWidgetItem* wmsAttrItem = new QTableWidgetItem();
-  wmsAttrItem->setCheckState( mLayer->excludeAttributesWMS().contains( field.name() ) ? Qt::Unchecked : Qt::Checked );
+  wmsAttrItem->setCheckState( mLayer->excludeAttributesWms().contains( field.name() ) ? Qt::Unchecked : Qt::Checked );
   wmsAttrItem->setFlags( Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable );
   mFieldsList->setItem( row, attrWMSCol, wmsAttrItem );
   QTableWidgetItem* wfsAttrItem = new QTableWidgetItem();
-  wfsAttrItem->setCheckState( mLayer->excludeAttributesWFS().contains( field.name() ) ? Qt::Unchecked : Qt::Checked );
+  wfsAttrItem->setCheckState( mLayer->excludeAttributesWfs().contains( field.name() ) ? Qt::Unchecked : Qt::Checked );
   wfsAttrItem->setFlags( Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable );
   mFieldsList->setItem( row, attrWFSCol, wfsAttrItem );
 }
@@ -546,8 +545,8 @@ void QgsFieldsProperties::attributeTypeDialog()
   attributeTypeDialog.setExpression( cfg.mConstraint );
   attributeTypeDialog.setExpressionDescription( cfg.mConstraintDescription );
 
-  attributeTypeDialog.setWidgetV2Config( cfg.mEditorWidgetV2Config );
-  attributeTypeDialog.setWidgetV2Type( cfg.mEditorWidgetV2Type );
+  attributeTypeDialog.setWidgetConfig( cfg.mEditorWidgetConfig );
+  attributeTypeDialog.setWidgetType( cfg.mEditorWidgetType );
 
   if ( !attributeTypeDialog.exec() )
     return;
@@ -558,10 +557,10 @@ void QgsFieldsProperties::attributeTypeDialog()
   cfg.mConstraintDescription = attributeTypeDialog.expressionDescription();
   cfg.mConstraint = attributeTypeDialog.expression();
 
-  cfg.mEditorWidgetV2Type = attributeTypeDialog.editorWidgetV2Type();
-  cfg.mEditorWidgetV2Config = attributeTypeDialog.editorWidgetV2Config();
+  cfg.mEditorWidgetType = attributeTypeDialog.editorWidgetType();
+  cfg.mEditorWidgetConfig = attributeTypeDialog.editorWidgetConfig();
 
-  pb->setText( attributeTypeDialog.editorWidgetV2Text() );
+  pb->setText( attributeTypeDialog.editorWidgetText() );
 
   setConfigForRow( row, cfg );
 }
@@ -576,7 +575,7 @@ void QgsFieldsProperties::attributeAdded( int idx )
   const QgsFields &fields = mLayer->fields();
   int row = mFieldsList->rowCount();
   mFieldsList->insertRow( row );
-  setRow( row, idx, fields[idx] );
+  setRow( row, idx, fields.at( idx ) );
   mFieldsList->setCurrentCell( row, idx );
 
   for ( int i = idx + 1; i < mIndexedWidgets.count(); i++ )
@@ -815,41 +814,6 @@ void QgsFieldsProperties::on_mCalculateFieldButton_clicked()
 // methods reimplemented from qt designer base class
 //
 
-QMap< QgsVectorLayer::EditType, QString > QgsFieldsProperties::editTypeMap;
-
-void QgsFieldsProperties::setupEditTypes()
-{
-  if ( !editTypeMap.isEmpty() )
-    return;
-
-  editTypeMap.insert( QgsVectorLayer::LineEdit, tr( "Line edit" ) );
-  editTypeMap.insert( QgsVectorLayer::UniqueValues, tr( "Unique values" ) );
-  editTypeMap.insert( QgsVectorLayer::UniqueValuesEditable, tr( "Unique values editable" ) );
-  editTypeMap.insert( QgsVectorLayer::Classification, tr( "Classification" ) );
-  editTypeMap.insert( QgsVectorLayer::ValueMap, tr( "Value map" ) );
-  editTypeMap.insert( QgsVectorLayer::EditRange, tr( "Edit range" ) );
-  editTypeMap.insert( QgsVectorLayer::SliderRange, tr( "Slider range" ) );
-  editTypeMap.insert( QgsVectorLayer::DialRange, tr( "Dial range" ) );
-  editTypeMap.insert( QgsVectorLayer::FileName, tr( "File name" ) );
-  editTypeMap.insert( QgsVectorLayer::Enumeration, tr( "Enumeration" ) );
-  editTypeMap.insert( QgsVectorLayer::Immutable, tr( "Immutable" ) );
-  editTypeMap.insert( QgsVectorLayer::Hidden, tr( "Hidden" ) );
-  editTypeMap.insert( QgsVectorLayer::CheckBox, tr( "Checkbox" ) );
-  editTypeMap.insert( QgsVectorLayer::TextEdit, tr( "Text edit" ) );
-  editTypeMap.insert( QgsVectorLayer::Calendar, tr( "Calendar" ) );
-  editTypeMap.insert( QgsVectorLayer::ValueRelation, tr( "Value relation" ) );
-  editTypeMap.insert( QgsVectorLayer::UuidGenerator, tr( "UUID generator" ) );
-  editTypeMap.insert( QgsVectorLayer::Photo, tr( "Photo" ) );
-  editTypeMap.insert( QgsVectorLayer::WebView, tr( "Web view" ) );
-  editTypeMap.insert( QgsVectorLayer::Color, tr( "Color" ) );
-  editTypeMap.insert( QgsVectorLayer::EditorWidgetV2, tr( "Editor Widget" ) );
-}
-
-QString QgsFieldsProperties::editTypeButtonText( QgsVectorLayer::EditType type )
-{
-  return editTypeMap[ type ];
-}
-
 void QgsFieldsProperties::updateFieldRenamingStatus()
 {
   bool canRenameFields = mLayer->isEditable() && ( mLayer->dataProvider()->capabilities() & QgsVectorDataProvider::RenameAttributes ) && !mLayer->readOnly();
@@ -968,8 +932,8 @@ void QgsFieldsProperties::apply()
     mLayer->editFormConfig()->setExpressionDescription( i, cfg.mConstraintDescription );
     mLayer->editFormConfig()->setExpression( i, cfg.mConstraint );
 
-    mLayer->editFormConfig()->setWidgetType( idx, cfg.mEditorWidgetV2Type );
-    mLayer->editFormConfig()->setWidgetConfig( idx, cfg.mEditorWidgetV2Config );
+    mLayer->editFormConfig()->setWidgetType( idx, cfg.mEditorWidgetType );
+    mLayer->editFormConfig()->setWidgetConfig( idx, cfg.mEditorWidgetConfig );
 
     if ( mFieldsList->item( i, attrWMSCol )->checkState() == Qt::Unchecked )
     {
@@ -1002,8 +966,8 @@ void QgsFieldsProperties::apply()
 
   mLayer->editFormConfig()->setSuppress(( QgsEditFormConfig::FeatureFormSuppress )mFormSuppressCmbBx->currentIndex() );
 
-  mLayer->setExcludeAttributesWMS( excludeAttributesWMS );
-  mLayer->setExcludeAttributesWFS( excludeAttributesWFS );
+  mLayer->setExcludeAttributesWms( excludeAttributesWMS );
+  mLayer->setExcludeAttributesWfs( excludeAttributesWFS );
 
   // relations
   for ( int i = 0; i < mRelationsList->rowCount(); ++i )
@@ -1049,9 +1013,8 @@ QgsFieldsProperties::FieldConfig::FieldConfig( QgsVectorLayer* layer, int idx )
   mNotNull = layer->editFormConfig()->notNull( idx );
   mConstraint = layer->editFormConfig()->expression( idx );
   mConstraintDescription = layer->editFormConfig()->expressionDescription( idx );
-  mEditorWidgetV2Type = layer->editFormConfig()->widgetType( idx );
-  mEditorWidgetV2Config = layer->editFormConfig()->widgetConfig( idx );
-
+  mEditorWidgetType = layer->editFormConfig()->widgetType( idx );
+  mEditorWidgetConfig = layer->editFormConfig()->widgetConfig( idx );
 }
 
 /*

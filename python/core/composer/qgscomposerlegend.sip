@@ -60,12 +60,8 @@ class QgsComposerLegend : QgsComposerItem
      */
     bool resizeToContents() const;
 
-    /** Returns pointer to the legend model*/
-    //! @deprecated in 2.6 - use modelV2()
-    QgsLegendModel* model() /Deprecated/;
-
     //! @note added in 2.6
-    QgsLegendModelV2* modelV2();
+    QgsLegendModelV2* model();
 
     //! @note added in 2.6
     void setAutoUpdateModel( bool autoUpdate );
@@ -222,13 +218,13 @@ class QgsComposerLegend : QgsComposerItem
        * @param elem is Dom element corresponding to 'Composer' tag
        * @param doc Dom document
        */
-    bool writeXML( QDomElement& elem, QDomDocument & doc ) const;
+    bool writeXml( QDomElement& elem, QDomDocument & doc ) const;
 
     /** Sets state from Dom document
        * @param itemElem is Dom node corresponding to item tag
        * @param doc is Dom document
        */
-    bool readXML( const QDomElement& itemElem, const QDomDocument& doc );
+    bool readXml( const QDomElement& itemElem, const QDomDocument& doc );
 
     //Overridden to show legend title
     virtual QString displayName() const;

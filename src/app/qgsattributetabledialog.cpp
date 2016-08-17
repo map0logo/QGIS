@@ -23,6 +23,7 @@
 #include "qgsattributetablefiltermodel.h"
 #include "qgsattributetableview.h"
 
+
 #include "qgsapplication.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectordataprovider.h"
@@ -32,6 +33,7 @@
 #include "qgsaddattrdialog.h"
 #include "qgsdelattrdialog.h"
 #include "qgsdockwidget.h"
+#include "qgsfeatureiterator.h"
 #include "qgssearchquerybuilder.h"
 #include "qgslogger.h"
 #include "qgsmapcanvas.h"
@@ -48,15 +50,14 @@
 #include "qgseditorwidgetregistry.h"
 #include "qgsfieldproxymodel.h"
 
-static QgsExpressionContext _getExpressionContext( const void* context )
+QgsExpressionContext QgsAttributeTableDialog::createExpressionContext() const
 {
   QgsExpressionContext expContext;
   expContext << QgsExpressionContextUtils::globalScope()
   << QgsExpressionContextUtils::projectScope();
 
-  const QgsVectorLayer* layer = ( const QgsVectorLayer* ) context;
-  if ( layer )
-    expContext << QgsExpressionContextUtils::layerScope( layer );
+  if ( mLayer )
+    expContext << QgsExpressionContextUtils::layerScope( mLayer );
 
   expContext.lastScope()->setVariable( "row_number", 1 );
 
@@ -131,17 +132,15 @@ QgsAttributeTableDialog::QgsAttributeTableDialog( QgsVectorLayer *theLayer, QWid
   mEditorContext.setVectorLayerTools( QgisApp::instance()->vectorLayerTools() );
 
   QgsFeatureRequest r;
-  if ( mLayer->geometryType() != QGis::NoGeometry &&
+  if ( mLayer->geometryType() != QgsWkbTypes::NullGeometry &&
        settings.value( "/qgis/attributeTableBehaviour", QgsAttributeTableFilterModel::ShowAll ).toInt() == QgsAttributeTableFilterModel::ShowVisible )
   {
     QgsMapCanvas *mc = QgisApp::instance()->mapCanvas();
     QgsRectangle extent( mc->mapSettings().mapToLayerCoordinates( theLayer, mc->extent() ) );
     r.setFilterRect( extent );
 
-    QgsGeometry *g = QgsGeometry::fromRect( extent );
-    mRubberBand = new QgsRubberBand( mc, QGis::Polygon );
-    mRubberBand->setToGeometry( g, theLayer );
-    delete g;
+    mRubberBand = new QgsRubberBand( mc, QgsWkbTypes::PolygonGeometry );
+    mRubberBand->setToGeometry( QgsGeometry::fromRect( extent ), theLayer );
 
     mActionShowAllFilter->setText( tr( "Show All Features In Initial Canvas Extent" ) );
   }
@@ -180,7 +179,7 @@ QgsAttributeTableDialog::QgsAttributeTableDialog( QgsVectorLayer *theLayer, QWid
   // info from layer to table
   connect( mLayer, SIGNAL( editingStarted() ), this, SLOT( editingToggled() ) );
   connect( mLayer, SIGNAL( editingStopped() ), this, SLOT( editingToggled() ) );
-  connect( mLayer, SIGNAL( layerDeleted() ), this, SLOT( close() ) );
+  connect( mLayer, SIGNAL( destroyed() ), this, SLOT( close() ) );
   connect( mLayer, SIGNAL( selectionChanged() ), this, SLOT( updateTitle() ) );
   connect( mLayer, SIGNAL( featureAdded( QgsFeatureId ) ), this, SLOT( updateTitle() ) );
   connect( mLayer, SIGNAL( featuresDeleted( QgsFeatureIds ) ), this, SLOT( updateTitle() ) );
@@ -275,7 +274,7 @@ QgsAttributeTableDialog::QgsAttributeTableDialog( QgsVectorLayer *theLayer, QWid
       break;
   }
 
-  mUpdateExpressionText->registerGetExpressionContextCallback( &_getExpressionContext, mLayer );
+  mUpdateExpressionText->registerExpressionContextGenerator( this );
   mFieldCombo->setFilters( QgsFieldProxyModel::All | QgsFieldProxyModel::HideReadOnly );
   mFieldCombo->setLayer( mLayer );
 
@@ -443,7 +442,7 @@ void QgsAttributeTableDialog::runFieldCalculation( QgsVectorLayer* layer, const 
   QString error;
 
   QgsExpression exp( expression );
-  exp.setGeomCalculator( *myDa );
+  exp.setGeomCalculator( myDa );
   exp.setDistanceUnits( QgsProject::instance()->distanceUnits() );
   exp.setAreaUnits( QgsProject::instance()->areaUnits() );
   bool useGeometry = exp.needsGeometry();
@@ -508,7 +507,7 @@ void QgsAttributeTableDialog::replaceSearchWidget( QWidget* oldw, QWidget* neww 
 {
   mFilterLayout->removeWidget( oldw );
   oldw->setVisible( false );
-  mFilterLayout->addWidget( neww, 0, 0, nullptr );
+  mFilterLayout->addWidget( neww, 0, 0, 0 );
   neww->setVisible( true );
 }
 
@@ -945,7 +944,7 @@ void QgsAttributeTableDialog::setFilterExpression( const QString& filterString, 
 
   QApplication::setOverrideCursor( Qt::WaitCursor );
 
-  filterExpression.setGeomCalculator( myDa );
+  filterExpression.setGeomCalculator( &myDa );
   filterExpression.setDistanceUnits( QgsProject::instance()->distanceUnits() );
   filterExpression.setAreaUnits( QgsProject::instance()->areaUnits() );
   QgsFeatureRequest request( mMainView->masterModel()->request() );

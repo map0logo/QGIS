@@ -19,16 +19,20 @@
 #define QGSEDITFORMCONFIG_H
 
 #include <QMap>
+#include <QDomElement>
+#include <QDomDocument>
 
 #include "qgseditorwidgetconfig.h"
-#include "qgsrelationmanager.h"
+#include "qgsrelation.h"
+
+class QgsRelationManager;
 
 /** \ingroup core
  * This is an abstract base class for any elements of a drag and drop form.
  *
  * This can either be a container which will be represented on the screen
  * as a tab widget or ca collapsible group box. Or it can be a field which will
- * then be represented based on the QgsEditorWidgetV2 type and configuration.
+ * then be represented based on the QgsEditorWidget type and configuration.
  * Or it can be a relation and embed the form of several children of another
  * layer.
  */
@@ -681,7 +685,7 @@ class CORE_EXPORT QgsEditFormConfig : public QObject
     QMap< QString, bool> mLabelOnTop;
     QMap< QString, bool> mNotNull;
 
-    QMap<QString, QString> mEditorWidgetV2Types;
+    QMap<QString, QString> mEditorWidgetTypes;
     QMap<QString, QgsEditorWidgetConfig > mWidgetConfigs;
 
     /** Defines the default layout to use for the attribute editor (Drag and drop, UI File, Generated) */
