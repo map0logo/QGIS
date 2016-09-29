@@ -22,6 +22,7 @@
 #include "qgsvectordataprovider.h"
 #include "qgsmapserviceexception.h"
 #include "qgsaccesscontrol.h"
+#include "qgslogger.h"
 
 QgsWfsProjectParser::QgsWfsProjectParser(
   const QString& filePath
@@ -485,7 +486,7 @@ void QgsWfsProjectParser::describeFeatureType( const QString& aTypeName, QDomEle
 
           sequenceElem.appendChild( attElem );
 
-          QString alias = layer->attributeAlias( idx );
+          QString alias = fields.at( idx ).alias();
           if ( !alias.isEmpty() )
           {
             attElem.setAttribute( "alias", alias );

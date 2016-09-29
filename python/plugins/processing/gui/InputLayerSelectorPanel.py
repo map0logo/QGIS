@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -57,21 +58,21 @@ class InputLayerSelectorPanel(BASE, WIDGET):
 
     def showSelectionDialog(self):
         settings = QSettings()
-        text = unicode(self.cmbText.currentText())
+        text = str(self.cmbText.currentText())
         if os.path.isdir(text):
             path = text
         elif os.path.isdir(os.path.dirname(text)):
             path = os.path.dirname(text)
         elif settings.contains('/Processing/LastInputPath'):
-            path = unicode(settings.value('/Processing/LastInputPath'))
+            path = str(settings.value('/Processing/LastInputPath'))
         else:
             path = ''
 
-        filename = QFileDialog.getOpenFileName(self, self.tr('Select file'),
-                                               path, self.tr('All files (*.*);;') + self.param.getFileFilter())
+        filename, selected_filter = QFileDialog.getOpenFileName(self, self.tr('Select file'),
+                                                                path, self.tr('All files (*.*);;') + self.param.getFileFilter())
         if filename:
             settings.setValue('/Processing/LastInputPath',
-                              os.path.dirname(unicode(filename)))
+                              os.path.dirname(str(filename)))
             filename = dataobjects.getRasterSublayer(filename, self.param)
             self.cmbText.addItem(filename, filename)
             self.cmbText.setCurrentIndex(self.cmbText.count() - 1)

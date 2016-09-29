@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -69,7 +71,7 @@ class BatchInputSelectionPanel(QWidget):
         popupmenu = QMenu()
 
         if not (isinstance(self.param, ParameterMultipleInput) and
-                self.param.datatype == ParameterMultipleInput.TYPE_FILE):
+                self.param.datatype == dataobjects.TYPE_FILE):
             selectLayerAction = QAction(
                 self.tr('Select from open layers'), self.pushButton)
             selectLayerAction.triggered.connect(self.showLayerSelectionDialog)
@@ -85,13 +87,13 @@ class BatchInputSelectionPanel(QWidget):
     def showLayerSelectionDialog(self):
         if (isinstance(self.param, ParameterRaster) or
                 (isinstance(self.param, ParameterMultipleInput) and
-                 self.param.datatype == ParameterMultipleInput.TYPE_RASTER)):
+                 self.param.datatype == dataobjects.TYPE_RASTER)):
             layers = dataobjects.getRasterLayers()
         elif isinstance(self.param, ParameterTable):
             layers = dataobjects.getTables()
         else:
             if isinstance(self.param, ParameterVector):
-                datatype = self.param.shapetype
+                datatype = self.param.datatype
             else:
                 datatype = [self.param.datatype]
             layers = dataobjects.getVectorLayers(datatype)
@@ -115,29 +117,29 @@ class BatchInputSelectionPanel(QWidget):
 
     def showFileSelectionDialog(self):
         settings = QSettings()
-        text = unicode(self.text.text())
+        text = str(self.text.text())
         if os.path.isdir(text):
             path = text
         elif os.path.isdir(os.path.dirname(text)):
             path = os.path.dirname(text)
         elif settings.contains('/Processing/LastInputPath'):
-            path = unicode(settings.value('/Processing/LastInputPath'))
+            path = str(settings.value('/Processing/LastInputPath'))
         else:
             path = ''
 
-        ret = QFileDialog.getOpenFileNames(self, self.tr('Open file'), path,
-                                           self.tr('All files(*.*);;') + self.param.getFileFilter())
+        ret, selected_filter = QFileDialog.getOpenFileNames(self, self.tr('Open file'), path,
+                                                            self.tr('All files(*.*);;') + self.param.getFileFilter())
         if ret:
             files = list(ret)
             settings.setValue('/Processing/LastInputPath',
-                              os.path.dirname(unicode(files[0])))
+                              os.path.dirname(str(files[0])))
             for i, filename in enumerate(files):
                 files[i] = dataobjects.getRasterSublayer(filename, self.param)
             if len(files) == 1:
                 self.text.setText(files[0])
             else:
                 if isinstance(self.param, ParameterMultipleInput):
-                    self.text.setText(';'.join(unicode(f) for f in files))
+                    self.text.setText(';'.join(str(f) for f in files))
                 else:
                     rowdif = len(files) - (self.table.rowCount() - self.row)
                     for i in range(rowdif):

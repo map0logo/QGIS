@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'September 2012'
@@ -45,7 +46,7 @@ class StatisticsByCategories(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector table tools')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input vector layer'), [ParameterVector.VECTOR_TYPE_ANY], False))
+                                          self.tr('Input vector layer')))
         self.addParameter(ParameterTableField(self.VALUES_FIELD_NAME,
                                               self.tr('Field to calculate statistics on'),
                                               self.INPUT_LAYER, ParameterTableField.DATA_TYPE_NUMBER))
@@ -72,7 +73,7 @@ class StatisticsByCategories(GeoAlgorithm):
             attrs = feat.attributes()
             try:
                 value = float(attrs[valuesField])
-                cat = unicode(attrs[categoriesField])
+                cat = str(attrs[categoriesField])
                 if cat not in values:
                     values[cat] = []
                 values[cat].append(value)
@@ -85,7 +86,7 @@ class StatisticsByCategories(GeoAlgorithm):
                                      QgsStatisticalSummary.Mean | QgsStatisticalSummary.StDevSample |
                                      QgsStatisticalSummary.Sum | QgsStatisticalSummary.Count)
 
-        for (cat, v) in values.items():
+        for (cat, v) in list(values.items()):
             stat.calculate(v)
             record = [cat, stat.min(), stat.max(), stat.mean(), stat.sampleStDev(), stat.sum(), stat.count()]
             writer.addRecord(record)

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import range
 
 __author__ = 'Alexander Bruy'
 __date__ = 'August 2012'
@@ -60,7 +61,7 @@ class RectanglesOvalsDiamondsFixed(GeoAlgorithm):
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
                                           self.tr('Input layer'),
-                                          [ParameterVector.VECTOR_TYPE_POINT]))
+                                          [dataobjects.TYPE_VECTOR_POINT]))
         self.addParameter(ParameterSelection(self.SHAPE,
                                              self.tr('Buffer shape'), self.shapes))
         self.addParameter(ParameterNumber(self.WIDTH, self.tr('Width'),
@@ -76,7 +77,8 @@ class RectanglesOvalsDiamondsFixed(GeoAlgorithm):
                                           36))
 
         self.addOutput(OutputVector(self.OUTPUT_LAYER,
-                                    self.tr('Output')))
+                                    self.tr('Output'),
+                                    datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
@@ -182,7 +184,7 @@ class RectanglesOvalsDiamondsFixed(GeoAlgorithm):
                 x = point.x()
                 y = point.y()
                 points = []
-                for t in [(2 * math.pi) / segments * i for i in xrange(segments)]:
+                for t in [(2 * math.pi) / segments * i for i in range(segments)]:
                     points.append((xOffset * math.cos(t), yOffset * math.sin(t)))
                 polygon = [[QgsPoint(i[0] * math.cos(phi) + i[1] * math.sin(phi) + x,
                                      -i[0] * math.sin(phi) + i[1] * math.cos(phi) + y) for i in points]]
@@ -196,7 +198,7 @@ class RectanglesOvalsDiamondsFixed(GeoAlgorithm):
                 x = point.x()
                 y = point.y()
                 points = []
-                for t in [(2 * math.pi) / segments * i for i in xrange(segments)]:
+                for t in [(2 * math.pi) / segments * i for i in range(segments)]:
                     points.append((xOffset * math.cos(t), yOffset * math.sin(t)))
                 polygon = [[QgsPoint(i[0] + x, i[1] + y) for i in points]]
 

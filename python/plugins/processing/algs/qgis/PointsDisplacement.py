@@ -47,13 +47,13 @@ class PointsDisplacement(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector geometry tools')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_POINT]))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_POINT]))
         self.addParameter(ParameterNumber(self.DISTANCE,
                                           self.tr('Displacement distance'),
                                           0.00001, 999999999.999990, 0.00015))
         self.addParameter(ParameterBoolean(self.HORIZONTAL,
                                            self.tr('Horizontal distribution for two point case')))
-        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Displaced')))
+        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Displaced'), datatype=[dataobjects.TYPE_VECTOR_POINT]))
 
     def processAlgorithm(self, progress):
         radius = self.getParameterValue(self.DISTANCE)
@@ -86,10 +86,10 @@ class PointsDisplacement(GeoAlgorithm):
         fullPerimeter = 2 * math.pi
 
         request = QgsFeatureRequest()
-        for (geom, fids) in duplicates.iteritems():
+        for (geom, fids) in duplicates.items():
             count = len(fids)
             if count == 1:
-                f = layer.getFeatures(request.setFilterFid(fids[0])).next()
+                f = next(layer.getFeatures(request.setFilterFid(fids[0])))
                 writer.addFeature(f)
             else:
                 angleStep = fullPerimeter / count
@@ -105,7 +105,7 @@ class PointsDisplacement(GeoAlgorithm):
                     dx = radius * sinusCurrentAngle
                     dy = radius * cosinusCurrentAngle
 
-                    f = layer.getFeatures(request.setFilterFid(fid)).next()
+                    f = next(layer.getFeatures(request.setFilterFid(fid)))
 
                     new_point = QgsPoint(old_point.x() + dx, old_point.y()
                                          + dy)

@@ -85,8 +85,9 @@ class QgsColorSchemeModel: QAbstractItemModel
     /** Add a color to the list
      * @param color color to add
      * @param label label for color
+     * @param allowDuplicate set to true to allow duplicate colors to be added (colors which are already present in the list)
      */
-    void addColor( const QColor color, const QString &label = QString() );
+    void addColor( const QColor &color, const QString &label = QString(), bool allowDuplicate = false );
 
     /** Returns whether the color scheme model has been modified
      * @returns true if colors have been modified
@@ -162,11 +163,12 @@ class QgsColorSchemeList: QTreeView
      */
     void removeSelection();
 
-    /** Adds a color to the list
+    /** Add a color to the list
      * @param color color to add
-     * @param label optional label for color
+     * @param label label for color
+     * @param allowDuplicate set to true to allow duplicate colors to be added (colors which are already present in the list)
      */
-    void addColor( const QColor &color, const QString &label = QString() );
+    void addColor( const QColor &color, const QString &label = QString(), bool allowDuplicate = false );
 
     /** Pastes colors from clipboard to the list
      * @see copyColors
@@ -177,6 +179,18 @@ class QgsColorSchemeList: QTreeView
      * @see pasteColors
      */
     void copyColors();
+
+    /** Displays a file picker dialog allowing users to import colors into the list from a file.
+     * @note added in QGIS 3.0
+     * @see showExportColorsDialog()
+     */
+    void showImportColorsDialog();
+
+    /** Displays a file picker dialog allowing users to export colors from the list into a file.
+     * @note added in QGIS 3.0
+     * @see showImportColorsDialog()
+     */
+    void showExportColorsDialog();
 
   signals:
 

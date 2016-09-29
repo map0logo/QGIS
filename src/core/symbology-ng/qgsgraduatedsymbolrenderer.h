@@ -123,9 +123,8 @@ class CORE_EXPORT QgsRendererRangeLabelFormat
 };
 
 class QgsVectorLayer;
-class QgsVectorColorRamp;
+class QgsColorRamp;
 
-Q_NOWARN_DEPRECATED_PUSH
 /** \ingroup core
  * \class QgsGraduatedSymbolRenderer
  */
@@ -137,27 +136,15 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
 
     virtual ~QgsGraduatedSymbolRenderer();
 
-    //! @note labelForLowerUpper in python bindings
     virtual QgsSymbol* symbolForFeature( QgsFeature& feature, QgsRenderContext &context ) override;
-    //! @note originalSymbolForFeature2 in python bindings
     virtual QgsSymbol* originalSymbolForFeature( QgsFeature& feature, QgsRenderContext &context ) override;
-
     virtual void startRender( QgsRenderContext& context, const QgsFields& fields ) override;
-
     virtual void stopRender( QgsRenderContext& context ) override;
-
     virtual QList<QString> usedAttributes() override;
-
     virtual QString dump() const override;
-
     virtual QgsGraduatedSymbolRenderer* clone() const override;
-
-    virtual void toSld( QDomDocument& doc, QDomElement &element ) const override;
-
-    //! returns bitwise OR-ed capabilities of the renderer
-    virtual Capabilities capabilities() override { return SymbolLevels | RotationField | Filter; }
-
-    //! @note symbol2 in python bindings
+    virtual void toSld( QDomDocument& doc, QDomElement &element, QgsStringMap props = QgsStringMap() ) const override;
+    virtual Capabilities capabilities() override { return SymbolLevels | Filter; }
     virtual QgsSymbolList symbols( QgsRenderContext &context ) override;
 
     QString classAttribute() const { return mAttrName; }
@@ -227,12 +214,6 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
     //! @note Added in 2.6
     void updateClasses( QgsVectorLayer *vlayer, Mode mode, int nclasses );
 
-    //! Evaluates the data expression and returns the list of values from the layer
-    //! @param vlayer  The layer for which to evaluate the expression
-    //! @note Added in 2.6
-    //! @deprecated use QgsVectorLayer::getDoubleValues instead
-    Q_DECL_DEPRECATED QList<double> getDataValues( QgsVectorLayer *vlayer );
-
     //! Return the label format used to generate default classification labels
     //! @note Added in 2.6
     const QgsRendererRangeLabelFormat &labelFormat() const { return mLabelFormat; }
@@ -247,13 +228,24 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
     //! @note Added in 2.6
     void calculateLabelPrecision( bool updateRanges = true );
 
+    /** Creates a new graduated renderer.
+     * @param vlayer vector layer
+     * @param attrName attribute to classify
+     * @param classes number of classes
+     * @param mode classification mode
+     * @param symbol base symbol
+     * @param ramp color ramp for classes
+     * @param inverted set to true to invert color ramp
+     * @param legendFormat
+     * @returns new QgsGraduatedSymbolRenderer object
+     */
     static QgsGraduatedSymbolRenderer* createRenderer(
       QgsVectorLayer* vlayer,
       const QString& attrName,
       int classes,
       Mode mode,
       QgsSymbol* symbol,
-      QgsVectorColorRamp* ramp,
+      QgsColorRamp* ramp,
       bool inverted = false,
       const QgsRendererRangeLabelFormat& legendFormat = QgsRendererRangeLabelFormat()
     );
@@ -261,19 +253,10 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
     //! create renderer from XML element
     static QgsFeatureRenderer* create( QDomElement& element );
 
-    //! store renderer info to XML element
     virtual QDomElement save( QDomDocument& doc ) override;
-
-    //! return a list of symbology items for the legend
     virtual QgsLegendSymbologyList legendSymbologyItems( QSize iconSize ) override;
-
-    //! return a list of item text / symbol
-    //! @note not available in python bindings
     virtual QgsLegendSymbolList legendSymbolItems( double scaleDenominator = -1, const QString& rule = QString() ) override;
-
-    //! @note added in 2.10
     QgsLegendSymbolListV2 legendSymbolItemsV2() const override;
-
     virtual QSet< QString > legendKeysForFeature( QgsFeature& feature, QgsRenderContext& context ) override;
 
     /** Returns the renderer's source symbol, which is the base symbol used for the each classes' symbol before applying
@@ -295,12 +278,12 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
      * @see setSourceColorRamp()
      * @see sourceSymbol()
      */
-    QgsVectorColorRamp* sourceColorRamp();
+    QgsColorRamp* sourceColorRamp();
 
     /** Sets the source color ramp.
      * @param ramp color ramp. Ownership is transferred to the renderer
      */
-    void setSourceColorRamp( QgsVectorColorRamp* ramp );
+    void setSourceColorRamp( QgsColorRamp* ramp );
 
     //! @note added in 2.1
     bool invertedColorRamp() { return mInvertedColorRamp; }
@@ -311,7 +294,7 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
      * @param ramp color ramp. Ownership is transferred to the renderer
      * @param inverted set to true to invert ramp colors
      */
-    void updateColorRamp( QgsVectorColorRamp* ramp = nullptr, bool inverted = false );
+    void updateColorRamp( QgsColorRamp* ramp = nullptr, bool inverted = false );
 
     /** Update all the symbols but leave breaks and colors. This method also sets the source
      * symbol for the renderer.
@@ -343,31 +326,10 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
     //! @note added in 2.10
     void setGraduatedMethod( GraduatedMethod method ) { mGraduatedMethod = method; }
 
-    Q_DECL_DEPRECATED void setRotationField( const QString& fieldOrExpression ) override;
-    Q_DECL_DEPRECATED QString rotationField() const override;
-
-    void setSizeScaleField( const QString& fieldOrExpression );
-    QString sizeScaleField() const;
-
-    void setScaleMethod( QgsSymbol::ScaleMethod scaleMethod );
-    QgsSymbol::ScaleMethod scaleMethod() const { return mScaleMethod; }
-
-    //! items of symbology items in legend should be checkable
-    //! @note added in 2.5
     virtual bool legendSymbolItemsCheckable() const override;
-
-    //! item in symbology was checked
-    //! @note added in 2.6
     virtual bool legendSymbolItemChecked( const QString& key ) override;
-
-    //! item in symbology was checked
-    //! @note added in 2.6
     virtual void checkLegendSymbolItem( const QString& key, bool state = true ) override;
-
     virtual void setLegendSymbolItem( const QString& key, QgsSymbol* symbol ) override;
-
-    //! If supported by the renderer, return classification attribute for the use in legend
-    //! @note added in 2.6
     virtual QString legendClassificationAttribute() const override { return classAttribute(); }
 
     //! creates a QgsGraduatedSymbolRenderer from an existing renderer.
@@ -380,21 +342,15 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
     QgsRangeList mRanges;
     Mode mMode;
     QScopedPointer<QgsSymbol> mSourceSymbol;
-    QScopedPointer<QgsVectorColorRamp> mSourceColorRamp;
+    QScopedPointer<QgsColorRamp> mSourceColorRamp;
     bool mInvertedColorRamp;
     QgsRendererRangeLabelFormat mLabelFormat;
 
-    QScopedPointer<QgsExpression> mRotation;
-    QScopedPointer<QgsExpression> mSizeScale;
-    QgsSymbol::ScaleMethod mScaleMethod;
     QScopedPointer<QgsExpression> mExpression;
     GraduatedMethod mGraduatedMethod;
     //! attribute index (derived from attribute name in startRender)
     int mAttrNum;
     bool mCounting;
-
-    //! temporary symbols, used for data-defined rotation and scaling
-    QHash<QgsSymbol*, QgsSymbol*> mTempSymbols;
 
     QgsSymbol* symbolForValue( double value );
 
@@ -412,6 +368,5 @@ class CORE_EXPORT QgsGraduatedSymbolRenderer : public QgsFeatureRenderer
     QVariant valueForFeature( QgsFeature& feature, QgsRenderContext &context ) const;
 
 };
-Q_NOWARN_DEPRECATED_POP
 
 #endif // QGSGRADUATEDSYMBOLRENDERERV2_H

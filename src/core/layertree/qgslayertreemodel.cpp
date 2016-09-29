@@ -485,17 +485,6 @@ QList<QgsLayerTreeNode*> QgsLayerTreeModel::indexes2nodes( const QModelIndexList
   return nodesFinal;
 }
 
-bool QgsLayerTreeModel::isIndexSymbologyNode( const QModelIndex& index ) const
-{
-  return nullptr != index2legendNode( index );
-}
-
-QgsLayerTreeLayer* QgsLayerTreeModel::layerNodeForSymbologyNode( const QModelIndex& index ) const
-{
-  QgsLayerTreeModelLegendNode* symNode = index2legendNode( index );
-  return symNode ? symNode->layerNode() : nullptr;
-}
-
 QgsLayerTreeGroup*QgsLayerTreeModel::rootGroup() const
 {
   return mRootNode;
@@ -1011,6 +1000,9 @@ QMimeData* QgsLayerTreeModel::mimeData( const QModelIndexList& indexes ) const
   QString txt = doc.toString();
 
   mimeData->setData( "application/qgis.layertreemodeldata", txt.toUtf8() );
+
+  mimeData->setData( "application/x-vnd.qgis.qgis.uri", QgsMimeDataUtils::layerTreeNodesToUriList( nodesFinal ) );
+
   return mimeData;
 }
 
@@ -1101,7 +1093,7 @@ const QIcon& QgsLayerTreeModel::iconGroup()
   static QIcon icon;
 
   if ( icon.isNull() )
-    icon = QgsApplication::getThemeIcon( "/mActionFolder.png" );
+    icon = QgsApplication::getThemeIcon( "/mActionFolder.svg" );
 
   return icon;
 }

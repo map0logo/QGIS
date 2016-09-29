@@ -136,7 +136,7 @@ qgis:difference: >
   Attributes are not modified
 
 qgis:dissolve: >
-  This algorithm takes a polygon vector layer and dissolve adjacent polygons into  single geometries. An attribute can be specified to dissolve only polygons belonging to the same class (having the same value for the specified attribute), or all polygons can be dissolved, considering only their geometries.
+  This algorithm takes a polygon or line vector layer and combines their geometries into new geometries. An attribute can be specified to dissolve only geometries belonging to the same class (having the same value for the specified attribute), alternatively all geometries can be dissolved. If the geometries to be dissolved are spatially separated from each other the output will be multi geometries. In case the input is a polygon layer, common boundaries of adjacent polygons being dissolved will get erased.
 
 qgis:distancematrix: >
   This algorithms creates a table containing a distance matrix, with distances between all the points in a points layer.
@@ -147,7 +147,8 @@ qgis:distancetonearesthub: >
 
   The resulting layer can contain only source points with an additional field indicating the distance to the nearest point and the name of the destination point, or lines linking each source point with its nearest destination point.
 
-qgis:eliminatesliverpolygons:
+qgis:eliminatesliverpolygons: >
+  This algorithm combines selected polygons of the input layer with certain adjacent polygons by erasing their common boundary. Eliminate can either use an existing selection or a logical query based on one of the layer's fields to make the selection itself. The adjacent polygon can be either the one with the largest or smallest area or the one sharing the largest common boundary with the polygon to be eliminated. Eliminate is normally used to get rid of sliver polygons, i.e. tiny polygons that are a result of polygon intersection processes where boundaries of the inputs are similar but not identical.
 
 qgis:explodelines: >
   This algorithm takes a lines layer and creates a new one in which each line is replaced is replaced by a set of lines representing the segments in the original line. Each line in the resulting layer contains only a start and an end point, with no intermediate nodes between them.
@@ -165,6 +166,8 @@ qgis:extractbylocation: >
 
 qgis:extractnodes: >
   This algorithm takes a line or polygon layer and generates a point layer with points representing the nodes in the input lines or polygons. The attributes associated to each point are the same ones associated to the line or polygon that the point belongs to.
+
+  Additional fields are added to the nodes indicating the node index (beginning at 0), distance along original geometry and bisector angle of node for original geometry.
 
 qgis:fieldcalculator: >
   This algorithm computes a new vector layer with the same features of the input layer, but with an additional attribute. The values of this new attribute are computed from each feature using a mathematical formula, based on te properties and attributes of the feature.
@@ -283,6 +286,11 @@ qgis:orientedminimumboundingbox: >
   This algorithm takes a vector layer and generate a new one with the minimum rectangle that covers all the input features.
 
   As an alternative, the output layer can contain not just a single  rectangle, but one for each input feature, representing the minimum rectangle that covers each of them.
+
+qgis:pointsalonglines: >
+  Creates points at regular intervals along line or polygon geometries. Created points will have new attributes added for the distance along the geometry and the angle of the line at the point.
+
+  An optional start and end offset can be specified, which controls how far from the start and end of the geometry the points should be created.
 
 qgis:pointsdisplacement:
 
@@ -422,6 +430,8 @@ qgis:setstyleforvectorlayer: >
 qgis:simplifygeometries: >
   This algorithm simplifies the geometries in a line or polygon layer. It creates a new layer with the same features as the ones in the input layer, but with geometries containing a lower number of vertices.
 
+  The algorithm gives a choice of simplification methods, including distance based (the "Douglas-Peucker" algorithm), area based ("Visvalingam" algorithm) and snapping geometries to grid.
+
 qgis:singlepartstomultipart:
 
 
@@ -433,6 +443,15 @@ qgis:singlesidedbuffer: >
   The join style parameter specifies whether round, mitre or beveled joins should be used when buffering corners in a line.
 
   The mitre limit parameter is only applicable for mitre join styles, and controls the maximum distance from the buffer to use when creating a mitred join.
+
+qgis:smoothgeometry: >
+  This algorithm smooths the geometries in a line or polygon layer. It creates a new layer with the same features as the ones in the input layer, but with geometries containing a higher number of vertices and corners in the geometries smoothed out.
+
+  The iterations parameter dictates how many smoothing iterations will be applied to each geometry. A higher number of iterations results in smoother geometries with the cost of greater number of nodes in the geometries.
+
+  The offset parameter controls how "tightly" the smoothed geometries follow the original geometries. Smaller values results in a tighter fit, and larger values will create a looser fit.
+
+  The maximum angle parameter can be used to prevent smoothing of nodes with large angles. Any node where the angle of the segments to either side is larger then this will not be smoothed. Eg setting the maximum angle to 90 degrees or lower would preserve right angles in the geometry.
 
 qgis:snappointstogrid: >
   This algorithm modifies the position of points in a vector layer, so they fall in the coordinates of a grid.

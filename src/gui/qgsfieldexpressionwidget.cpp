@@ -110,10 +110,15 @@ QString QgsFieldExpressionWidget::asExpression() const
   return isExpression() ? currentText() : QgsExpression::quotedColumnRef( currentText() );
 }
 
+QString QgsFieldExpressionWidget::expression() const
+{
+  return asExpression();
+}
+
 bool QgsFieldExpressionWidget::isValidExpression( QString *expressionError ) const
 {
   QString temp;
-  return QgsExpression::isValid( currentText(), &mExpressionContext, expressionError ? *expressionError : temp );
+  return QgsExpression::checkExpression( currentText(), &mExpressionContext, expressionError ? *expressionError : temp );
 }
 
 bool QgsFieldExpressionWidget::isExpression() const
@@ -200,6 +205,11 @@ void QgsFieldExpressionWidget::setField( const QString &fieldName )
   currentFieldChanged();
 }
 
+void QgsFieldExpressionWidget::setExpression( const QString& expression )
+{
+  setField( expression );
+}
+
 void QgsFieldExpressionWidget::editExpression()
 {
   QString currentExpression = currentText();
@@ -229,7 +239,6 @@ void QgsFieldExpressionWidget::expressionEdited( const QString& expression )
 
 void QgsFieldExpressionWidget::expressionEditingFinished()
 {
-  QgsDebugMsg( "Editing finished" );
   const QString expression = mCombo->lineEdit()->text();
   mFieldProxyModel->sourceFieldModel()->setExpression( expression );
   QModelIndex idx = mFieldProxyModel->sourceFieldModel()->indexFromName( expression );

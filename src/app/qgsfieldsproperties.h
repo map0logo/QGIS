@@ -42,6 +42,16 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
       FieldConfigRole
     };
 
+    struct RelationEditorConfiguration
+    {
+      RelationEditorConfiguration()
+          : showLinkButton( true )
+          , showUnlinkButton( true )
+      {}
+      bool showLinkButton;
+      bool showUnlinkButton;
+    };
+
     class DesignerTreeItemData
     {
       public:
@@ -56,6 +66,7 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
             : mType( Field )
             , mColumnCount( 1 )
             , mShowAsGroupBox( false )
+            , mShowLabel( true )
         {}
 
         DesignerTreeItemData( Type type, const QString& name )
@@ -63,6 +74,7 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
             , mName( name )
             , mColumnCount( 1 )
             , mShowAsGroupBox( false )
+            , mShowLabel( true )
         {}
 
         QString name() const { return mName; }
@@ -79,11 +91,23 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
         bool showAsGroupBox() const;
         void setShowAsGroupBox( bool showAsGroupBox );
 
+        bool showLabel() const;
+        void setShowLabel( bool showLabel );
+
+        QgsOptionalExpression visibilityExpression() const;
+        void setVisibilityExpression( const QgsOptionalExpression& visibilityExpression );
+
+        RelationEditorConfiguration relationEditorConfiguration() const;
+        void setRelationEditorConfiguration( const RelationEditorConfiguration& relationEditorConfiguration );
+
       private:
         Type mType;
         QString mName;
         int mColumnCount;
         bool mShowAsGroupBox;
+        bool mShowLabel;
+        QgsOptionalExpression mVisibilityExpression;
+        RelationEditorConfiguration mRelationEditorConfiguration;
     };
 
     /**
@@ -119,7 +143,7 @@ class APP_EXPORT QgsFieldsProperties : public QWidget, private Ui_QgsFieldsPrope
     /** Creates the a proper item to save from the tree
      * @return A widget definition. Containing another container or the final field
      */
-    QgsAttributeEditorElement* createAttributeEditorWidget( QTreeWidgetItem* item, QObject *parent, bool forceGroup = true );
+    QgsAttributeEditorElement* createAttributeEditorWidget( QTreeWidgetItem* item, QgsAttributeEditorElement* parent, bool forceGroup = true );
 
     void init();
     void apply();
@@ -259,7 +283,7 @@ class DesignerTree : public QTreeWidget
     Q_OBJECT
 
   public:
-    explicit DesignerTree( QWidget* parent = nullptr );
+    explicit DesignerTree( QgsVectorLayer* layer, QWidget* parent = nullptr );
     QTreeWidgetItem* addItem( QTreeWidgetItem* parent, QgsFieldsProperties::DesignerTreeItemData data );
     QTreeWidgetItem* addContainer( QTreeWidgetItem* parent, const QString& title , int columnCount );
 
@@ -276,6 +300,9 @@ class DesignerTree : public QTreeWidget
 
   private slots:
     void onItemDoubleClicked( QTreeWidgetItem* item, int column );
+
+  private:
+    QgsVectorLayer* mLayer;
 };
 
 Q_DECLARE_METATYPE( QgsFieldsProperties::FieldConfig )

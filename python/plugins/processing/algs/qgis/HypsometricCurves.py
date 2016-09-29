@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'November 2014'
@@ -40,9 +41,7 @@ from processing.core.parameters import ParameterNumber
 from processing.core.parameters import ParameterBoolean
 from processing.core.outputs import OutputDirectory
 
-from processing.tools import raster
-from processing.tools import dataobjects
-from processing.tools import vector
+from processing.tools import raster, vector, dataobjects
 
 
 class HypsometricCurves(GeoAlgorithm):
@@ -60,7 +59,7 @@ class HypsometricCurves(GeoAlgorithm):
         self.addParameter(ParameterRaster(self.INPUT_DEM,
                                           self.tr('DEM to analyze')))
         self.addParameter(ParameterVector(self.BOUNDARY_LAYER,
-                                          self.tr('Boundary layer'), ParameterVector.VECTOR_TYPE_POLYGON))
+                                          self.tr('Boundary layer'), dataobjects.TYPE_VECTOR_POLYGON))
         self.addParameter(ParameterNumber(self.STEP,
                                           self.tr('Step'), 0.0, 999999999.999999, 100.0))
         self.addParameter(ParameterBoolean(self.USE_PERCENTAGE,
@@ -198,7 +197,7 @@ class HypsometricCurves(GeoAlgorithm):
         else:
             multiplier = pX * pY
 
-        for k, v in out.iteritems():
+        for k, v in out.items():
             out[k] = v * multiplier
 
         prev = None

@@ -94,14 +94,13 @@ const QPixmap& QgsColorButton::transparentBackground()
 
 void QgsColorButton::showColorDialog()
 {
-  if ( QgsPanelWidget* panel = QgsPanelWidget::findParentPanel( this ) )
+  QgsPanelWidget* panel = QgsPanelWidget::findParentPanel( this );
+  if ( panel && panel->dockMode() )
   {
-    QgsCompoundColorWidget* colorWidget = new QgsCompoundColorWidget( panel, color(), panel->dockMode() ? QgsCompoundColorWidget::LayoutVertical :
-        QgsCompoundColorWidget::LayoutDefault );
+    QgsCompoundColorWidget* colorWidget = new QgsCompoundColorWidget( panel, color(), QgsCompoundColorWidget::LayoutVertical );
     colorWidget->setPanelTitle( mColorDialogTitle );
     colorWidget->setAllowAlpha( mAllowAlpha );
     connect( colorWidget, SIGNAL( currentColorChanged( QColor ) ), this, SLOT( setValidTemporaryColor( QColor ) ) );
-    connect( colorWidget, SIGNAL( panelAccepted( QgsPanelWidget* ) ), this, SLOT( panelAccepted( QgsPanelWidget* ) ) );
     panel->openPanel( colorWidget );
     return;
   }
@@ -141,7 +140,6 @@ void QgsColorButton::showColorDialog()
   if ( newColor.isValid() )
   {
     setValidColor( newColor );
-    addRecentColor( newColor );
   }
 
   // reactivate button's window
@@ -173,9 +171,9 @@ bool QgsColorButton::event( QEvent *e )
     int saturation = this->color().saturation();
     QString info = QString( "HEX: %1 \n"
                             "RGB: %2 \n"
-                            "HSV: %3,%4,%4" ).arg( name )
+                            "HSV: %3,%4,%5" ).arg( name )
                    .arg( QgsSymbolLayerUtils::encodeColor( this->color() ) )
-                   .arg( hue ).arg( value ).arg( saturation );
+                   .arg( hue ).arg( saturation ).arg( value );
     setToolTip( info );
   }
   return QToolButton::event( e );
@@ -375,14 +373,6 @@ void QgsColorButton::setValidTemporaryColor( const QColor& newColor )
   if ( newColor.isValid() )
   {
     setColor( newColor );
-  }
-}
-
-void QgsColorButton::panelAccepted( QgsPanelWidget* widget )
-{
-  if ( QgsCompoundColorWidget* colorWidget = qobject_cast< QgsCompoundColorWidget* >( widget ) )
-  {
-    addRecentColor( colorWidget->color() );
   }
 }
 

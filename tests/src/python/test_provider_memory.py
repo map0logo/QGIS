@@ -49,8 +49,8 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
     def setUpClass(cls):
         """Run before all tests"""
         # Create test layer
-        cls.vl = QgsVectorLayer(u'Point?crs=epsg:4326&field=pk:integer&field=cnt:integer&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
-                                u'test', u'memory')
+        cls.vl = QgsVectorLayer('Point?crs=epsg:4326&field=pk:integer&field=cnt:integer&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
+                                'test', 'memory')
         assert (cls.vl.isValid())
         cls.provider = cls.vl.dataProvider()
 
@@ -76,8 +76,8 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         cls.provider.addFeatures([f1, f2, f3, f4, f5])
 
         # poly layer
-        cls.poly_vl = QgsVectorLayer(u'Polygon?crs=epsg:4326&field=pk:integer&key=pk',
-                                     u'test', u'memory')
+        cls.poly_vl = QgsVectorLayer('Polygon?crs=epsg:4326&field=pk:integer&key=pk',
+                                     'test', 'memory')
         assert (cls.poly_vl.isValid())
         cls.poly_provider = cls.poly_vl.dataProvider()
 
@@ -143,7 +143,7 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         layer = QgsVectorLayer("Point", "test", "memory")
         provider = layer.dataProvider()
 
-        res = provider.addAttributes([QgsField("name", QVariant.String, ),
+        res = provider.addAttributes([QgsField("name", QVariant.String),
                                       QgsField("age", QVariant.Int),
                                       QgsField("size", QVariant.Double)])
         assert res, "Failed to add attributes"
@@ -193,7 +193,7 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         layer = QgsVectorLayer("Point", "test", "memory")
         provider = layer.dataProvider()
 
-        provider.addAttributes([QgsField("name", QVariant.String, ),
+        provider.addAttributes([QgsField("name", QVariant.String),
                                 QgsField("age", QVariant.Int),
                                 QgsField("size", QVariant.Double)])
         myMessage = ('Expected: %s\nGot: %s\n' %
@@ -267,7 +267,7 @@ class TestPyQgsMemoryProvider(unittest.TestCase, ProviderTestCase):
         layer = QgsVectorLayer("Point", "test", "memory")
         provider = layer.dataProvider()
 
-        res = provider.addAttributes([QgsField("name", QVariant.String, ),
+        res = provider.addAttributes([QgsField("name", QVariant.String),
                                       QgsField("age", QVariant.Int),
                                       QgsField("size", QVariant.Double)])
         layer.updateFields()
@@ -310,8 +310,8 @@ class TestPyQgsMemoryProviderIndexed(unittest.TestCase, ProviderTestCase):
     def setUpClass(cls):
         """Run before all tests"""
         # Create test layer
-        cls.vl = QgsVectorLayer(u'Point?crs=epsg:4326&index=yes&field=pk:integer&field=cnt:int8&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
-                                u'test', u'memory')
+        cls.vl = QgsVectorLayer('Point?crs=epsg:4326&index=yes&field=pk:integer&field=cnt:int8&field=name:string(0)&field=name2:string(0)&field=num_char:string&key=pk',
+                                'test', 'memory')
         assert (cls.vl.isValid())
         cls.provider = cls.vl.dataProvider()
 
@@ -337,8 +337,8 @@ class TestPyQgsMemoryProviderIndexed(unittest.TestCase, ProviderTestCase):
         cls.provider.addFeatures([f1, f2, f3, f4, f5])
 
         # poly layer
-        cls.poly_vl = QgsVectorLayer(u'Polygon?crs=epsg:4326&index=yes&field=pk:integer&key=pk',
-                                     u'test', u'memory')
+        cls.poly_vl = QgsVectorLayer('Polygon?crs=epsg:4326&index=yes&field=pk:integer&key=pk',
+                                     'test', 'memory')
         assert (cls.poly_vl.isValid())
         cls.poly_provider = cls.poly_vl.dataProvider()
 

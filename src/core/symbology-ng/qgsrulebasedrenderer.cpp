@@ -348,25 +348,7 @@ void QgsRuleBasedRenderer::Rule::toSld( QDomDocument& doc, QDomElement &element,
     props[ "filter" ] += mFilterExp;
   }
 
-  if ( mScaleMinDenom != 0 )
-  {
-    bool ok;
-    int parentScaleMinDenom = props.value( "scaleMinDenom", "0" ).toInt( &ok );
-    if ( !ok || parentScaleMinDenom <= 0 )
-      props[ "scaleMinDenom" ] = QString::number( mScaleMinDenom );
-    else
-      props[ "scaleMinDenom" ] = QString::number( qMax( parentScaleMinDenom, mScaleMinDenom ) );
-  }
-
-  if ( mScaleMaxDenom != 0 )
-  {
-    bool ok;
-    int parentScaleMaxDenom = props.value( "scaleMaxDenom", "0" ).toInt( &ok );
-    if ( !ok || parentScaleMaxDenom <= 0 )
-      props[ "scaleMaxDenom" ] = QString::number( mScaleMaxDenom );
-    else
-      props[ "scaleMaxDenom" ] = QString::number( qMin( parentScaleMaxDenom, mScaleMaxDenom ) );
-  }
+  QgsSymbolLayerUtils::mergeScaleDependencies( mScaleMinDenom, mScaleMaxDenom, props );
 
   if ( mSymbol )
   {
@@ -402,19 +384,7 @@ void QgsRuleBasedRenderer::Rule::toSld( QDomDocument& doc, QDomElement &element,
       QgsSymbolLayerUtils::createFunctionElement( doc, ruleElem, props.value( "filter", "" ) );
     }
 
-    if ( !props.value( "scaleMinDenom", "" ).isEmpty() )
-    {
-      QDomElement scaleMinDenomElem = doc.createElement( "se:MinScaleDenominator" );
-      scaleMinDenomElem.appendChild( doc.createTextNode( props.value( "scaleMinDenom", "" ) ) );
-      ruleElem.appendChild( scaleMinDenomElem );
-    }
-
-    if ( !props.value( "scaleMaxDenom", "" ).isEmpty() )
-    {
-      QDomElement scaleMaxDenomElem = doc.createElement( "se:MaxScaleDenominator" );
-      scaleMaxDenomElem.appendChild( doc.createTextNode( props.value( "scaleMaxDenom", "" ) ) );
-      ruleElem.appendChild( scaleMaxDenomElem );
-    }
+    QgsSymbolLayerUtils::applyScaleDependency( doc, ruleElem, props );
 
     mSymbol->toSld( doc, ruleElem, props );
   }
@@ -424,12 +394,6 @@ void QgsRuleBasedRenderer::Rule::toSld( QDomDocument& doc, QDomElement &element,
   {
     rule->toSld( doc, element, props );
   }
-}
-
-bool QgsRuleBasedRenderer::Rule::startRender( QgsRenderContext& context, const QgsFields& fields )
-{
-  QString filter;
-  return startRender( context, fields, filter );
 }
 
 bool QgsRuleBasedRenderer::Rule::startRender( QgsRenderContext& context, const QgsFields& fields, QString& filter )
@@ -977,9 +941,9 @@ QgsRuleBasedRenderer* QgsRuleBasedRenderer::clone() const
   return r;
 }
 
-void QgsRuleBasedRenderer::toSld( QDomDocument& doc, QDomElement &element ) const
+void QgsRuleBasedRenderer::toSld( QDomDocument& doc, QDomElement &element, QgsStringMap props ) const
 {
-  mRootRule->toSld( doc, element, QgsStringMap() );
+  mRootRule->toSld( doc, element, props );
 }
 
 // TODO: ideally this function should be removed in favor of legendSymbol(ogy)Items
@@ -1247,7 +1211,6 @@ QgsRuleBasedRenderer* QgsRuleBasedRenderer::convertFromRenderer( const QgsFeatur
       return nullptr;
 
     QgsSymbol* origSymbol = singleSymbolRenderer->symbol()->clone();
-    convertToDataDefinedSymbology( origSymbol, singleSymbolRenderer->sizeScaleField() );
     r = new QgsRuleBasedRenderer( origSymbol );
   }
   else if ( renderer->type() == "categorizedSymbol" )
@@ -1305,7 +1268,6 @@ QgsRuleBasedRenderer* QgsRuleBasedRenderer::convertFromRenderer( const QgsFeatur
       //data dependent area and rotation, so we need to convert these to obtain the same rendering
 
       QgsSymbol* origSymbol = category.symbol()->clone();
-      convertToDataDefinedSymbology( origSymbol, categorizedRenderer->sizeScaleField() );
       rule->setSymbol( origSymbol );
 
       rootrule->appendChild( rule );
@@ -1360,8 +1322,6 @@ QgsRuleBasedRenderer* QgsRuleBasedRenderer::convertFromRenderer( const QgsFeatur
       //data dependent area and rotation, so we need to convert these to obtain the same rendering
 
       QgsSymbol* symbol = range.symbol()->clone();
-      convertToDataDefinedSymbology( symbol, graduatedRenderer->sizeScaleField() );
-
       rule->setSymbol( symbol );
 
       rootrule->appendChild( rule );

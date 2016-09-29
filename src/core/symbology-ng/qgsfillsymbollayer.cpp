@@ -25,7 +25,7 @@
 #include "qgsproject.h"
 #include "qgssvgcache.h"
 #include "qgslogger.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 #include "qgsunittypes.h"
 
 #include <QPainter>
@@ -352,11 +352,13 @@ void QgsSimpleFillSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, c
     // <Stroke>
     QDomElement strokeElem = doc.createElement( "se:Stroke" );
     symbolizerElem.appendChild( strokeElem );
-    QgsSymbolLayerUtils::lineToSld( doc, strokeElem, mBorderStyle, mBorderColor, mBorderWidth, &mPenJoinStyle );
+    double borderWidth = QgsSymbolLayerUtils::rescaleUom( mBorderWidth, mBorderWidthUnit, props );
+    QgsSymbolLayerUtils::lineToSld( doc, strokeElem, mBorderStyle, borderWidth, borderWidth, &mPenJoinStyle );
   }
 
   // <se:Displacement>
-  QgsSymbolLayerUtils::createDisplacementElement( doc, symbolizerElem, mOffset );
+  QPointF offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+  QgsSymbolLayerUtils::createDisplacementElement( doc, symbolizerElem, offset );
 }
 
 QString QgsSimpleFillSymbolLayer::ogrFeatureStyle( double mmScaleFactor, double mapUnitScaleFactor ) const
@@ -537,7 +539,7 @@ QgsSymbolLayer* QgsGradientFillSymbolLayer::create( const QgsStringMap& props )
     offset = QgsSymbolLayerUtils::decodePoint( props["offset"] );
 
   //attempt to create color ramp from props
-  QgsVectorColorRamp* gradientRamp = QgsVectorGradientColorRamp::create( props );
+  QgsColorRamp* gradientRamp = QgsGradientColorRamp::create( props );
 
   //create a new gradient fill layer with desired properties
   QgsGradientFillSymbolLayer* sl = new QgsGradientFillSymbolLayer( color, color2, colorType, type, coordinateMode, gradientSpread );
@@ -559,7 +561,7 @@ QgsSymbolLayer* QgsGradientFillSymbolLayer::create( const QgsStringMap& props )
   return sl;
 }
 
-void QgsGradientFillSymbolLayer::setColorRamp( QgsVectorColorRamp* ramp )
+void QgsGradientFillSymbolLayer::setColorRamp( QgsColorRamp* ramp )
 {
   delete mGradientRamp;
   mGradientRamp = ramp;
@@ -763,7 +765,7 @@ QPointF QgsGradientFillSymbolLayer::rotateReferencePoint( QPointF refPoint, doub
 
 void QgsGradientFillSymbolLayer::applyGradient( const QgsSymbolRenderContext &context, QBrush &brush,
     const QColor &color, const QColor &color2, GradientColorType gradientColorType,
-    QgsVectorColorRamp *gradientRamp, GradientType gradientType,
+    QgsColorRamp *gradientRamp, GradientType gradientType,
     GradientCoordinateMode coordinateMode, GradientSpread gradientSpread,
     QPointF referencePoint1, QPointF referencePoint2, const double angle )
 {
@@ -817,7 +819,7 @@ void QgsGradientFillSymbolLayer::applyGradient( const QgsSymbolRenderContext &co
   if ( gradientColorType == QgsGradientFillSymbolLayer::ColorRamp && gradientRamp && gradientRamp->type() == "gradient" )
   {
     //color ramp gradient
-    QgsVectorGradientColorRamp* gradRamp = static_cast<QgsVectorGradientColorRamp*>( gradientRamp );
+    QgsGradientColorRamp* gradRamp = static_cast<QgsGradientColorRamp*>( gradientRamp );
     gradRamp->addStopsToGradient( &gradient, context.alpha() );
   }
   else
@@ -1019,7 +1021,7 @@ QgsSymbolLayer* QgsShapeburstFillSymbolLayer::create( const QgsStringMap& props 
   }
 
   //attempt to create color ramp from props
-  QgsVectorColorRamp* gradientRamp = QgsVectorGradientColorRamp::create( props );
+  QgsColorRamp* gradientRamp = QgsGradientColorRamp::create( props );
 
   //create a new shapeburst fill layer with desired properties
   QgsShapeburstFillSymbolLayer* sl = new QgsShapeburstFillSymbolLayer( color, color2, colorType, blurRadius, useWholeShape, maxDistance );
@@ -1059,7 +1061,7 @@ QString QgsShapeburstFillSymbolLayer::layerType() const
   return "ShapeburstFill";
 }
 
-void QgsShapeburstFillSymbolLayer::setColorRamp( QgsVectorColorRamp* ramp )
+void QgsShapeburstFillSymbolLayer::setColorRamp( QgsColorRamp* ramp )
 {
   delete mGradientRamp;
   mGradientRamp = ramp;
@@ -1186,7 +1188,7 @@ void QgsShapeburstFillSymbolLayer::renderPolygon( const QPolygonF& points, QList
   //if we are using the two color mode, create a gradient ramp
   if ( mColorType == QgsShapeburstFillSymbolLayer::SimpleTwoColor )
   {
-    mTwoColorGradientRamp = new QgsVectorGradientColorRamp( color1, color2 );
+    mTwoColorGradientRamp = new QgsGradientColorRamp( color1, color2 );
   }
 
   //no border for shapeburst fills
@@ -1404,7 +1406,7 @@ double * QgsShapeburstFillSymbolLayer::distanceTransform( QImage *im )
   return dtArray;
 }
 
-void QgsShapeburstFillSymbolLayer::dtArrayToQImage( double * array, QImage *im, QgsVectorColorRamp* ramp, double layerAlpha, bool useWholeShape, int maxPixelDistance )
+void QgsShapeburstFillSymbolLayer::dtArrayToQImage( double * array, QImage *im, QgsColorRamp* ramp, double layerAlpha, bool useWholeShape, int maxPixelDistance )
 {
   int width = im->width();
   int height = im->height();
@@ -1778,6 +1780,7 @@ void QgsSVGFillSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit unit )
   mPatternWidthUnit = unit;
   mSvgOutlineWidthUnit = unit;
   mOutlineWidthUnit = unit;
+  mOutline->setOutputUnit( unit );
 }
 
 QgsUnitTypes::RenderUnit QgsSVGFillSymbolLayer::outputUnit() const
@@ -2088,7 +2091,8 @@ void QgsSVGFillSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, cons
 
   if ( !mSvgFilePath.isEmpty() )
   {
-    QgsSymbolLayerUtils::externalGraphicToSld( doc, graphicElem, mSvgFilePath, "image/svg+xml", mColor, mPatternWidth );
+    double partternWidth = QgsSymbolLayerUtils::rescaleUom( mPatternWidth, mPatternWidthUnit, props );
+    QgsSymbolLayerUtils::externalGraphicToSld( doc, graphicElem, mSvgFilePath, "image/svg+xml", mColor, partternWidth );
   }
   else
   {
@@ -2099,7 +2103,8 @@ void QgsSVGFillSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, cons
 
   if ( mSvgOutlineColor.isValid() || mSvgOutlineWidth >= 0 )
   {
-    QgsSymbolLayerUtils::lineToSld( doc, graphicElem, Qt::SolidLine, mSvgOutlineColor, mSvgOutlineWidth );
+    double svgOutlineWidth = QgsSymbolLayerUtils::rescaleUom( mSvgOutlineWidth, mSvgOutlineWidthUnit, props );
+    QgsSymbolLayerUtils::lineToSld( doc, graphicElem, Qt::SolidLine, mSvgOutlineColor, svgOutlineWidth );
   }
 
   // <Rotation>
@@ -2887,7 +2892,9 @@ void QgsLinePatternFillSymbolLayer::toSld( QDomDocument &doc, QDomElement &eleme
   //line properties must be inside the graphic definition
   QColor lineColor = mFillLineSymbol ? mFillLineSymbol->color() : QColor();
   double lineWidth = mFillLineSymbol ? mFillLineSymbol->width() : 0.0;
-  QgsSymbolLayerUtils::wellKnownMarkerToSld( doc, graphicElem, "horline", QColor(), lineColor, Qt::SolidLine, lineWidth, mDistance );
+  lineWidth = QgsSymbolLayerUtils::rescaleUom( lineWidth, mLineWidthUnit,  props );
+  double distance = QgsSymbolLayerUtils::rescaleUom( mDistance, mDistanceUnit,  props );
+  QgsSymbolLayerUtils::wellKnownMarkerToSld( doc, graphicElem, "horline", QColor(), lineColor, Qt::SolidLine, lineWidth, distance );
 
   // <Rotation>
   QString angleFunc;
@@ -2905,6 +2912,7 @@ void QgsLinePatternFillSymbolLayer::toSld( QDomDocument &doc, QDomElement &eleme
 
   // <se:Displacement>
   QPointF lineOffset( sin( mLineAngle ) * mOffset, cos( mLineAngle ) * mOffset );
+  lineOffset = QgsSymbolLayerUtils::rescaleUom( lineOffset, mOffsetUnit, props );
   QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, lineOffset );
 }
 
@@ -3064,6 +3072,11 @@ void QgsPointPatternFillSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit uni
   mDistanceYUnit = unit;
   mDisplacementXUnit = unit;
   mDisplacementYUnit = unit;
+  if ( mMarkerSymbol )
+  {
+    mMarkerSymbol->setOutputUnit( unit );
+  }
+
 }
 
 QgsUnitTypes::RenderUnit QgsPointPatternFillSymbolLayer::outputUnit() const
@@ -3306,7 +3319,9 @@ void QgsPointPatternFillSymbolLayer::toSld( QDomDocument &doc, QDomElement &elem
     fillElem.appendChild( graphicFillElem );
 
     // store distanceX, distanceY, displacementX, displacementY in a <VendorOption>
-    QString dist = QgsSymbolLayerUtils::encodePoint( QPointF( mDistanceX, mDistanceY ) );
+    double dx  = QgsSymbolLayerUtils::rescaleUom( mDistanceX, mDistanceXUnit, props );
+    double dy  = QgsSymbolLayerUtils::rescaleUom( mDistanceY, mDistanceYUnit, props );
+    QString dist = QgsSymbolLayerUtils::encodePoint( QPointF( dx, dy ) );
     QDomElement distanceElem = QgsSymbolLayerUtils::createVendorOptionElement( doc, "distance", dist );
     symbolizerElem.appendChild( distanceElem );
 

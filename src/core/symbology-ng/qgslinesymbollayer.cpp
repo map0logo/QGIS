@@ -293,12 +293,6 @@ void QgsSimpleLineSymbolLayer::renderPolyline( const QPolygonF& points, QgsSymbo
     return;
   }
 
-  //size scaling by field
-  if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale )
-  {
-    applySizeScale( context, mPen, mSelPen );
-  }
-
   double offset = mOffset;
   applyDataDefinedSymbology( context, mPen, mSelPen, offset );
 
@@ -410,14 +404,17 @@ void QgsSimpleLineSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, c
   symbolizerElem.appendChild( strokeElem );
 
   Qt::PenStyle penStyle = mUseCustomDashPattern ? Qt::CustomDashLine : mPenStyle;
-  QgsSymbolLayerUtils::lineToSld( doc, strokeElem, penStyle, mColor, mWidth,
-                                  &mPenJoinStyle, &mPenCapStyle, &mCustomDashVector );
+  double width = QgsSymbolLayerUtils::rescaleUom( mWidth, mWidthUnit, props );
+  QVector<qreal> customDashVector = QgsSymbolLayerUtils::rescaleUom( mCustomDashVector, mCustomDashPatternUnit, props );
+  QgsSymbolLayerUtils::lineToSld( doc, strokeElem, penStyle, mColor, width,
+                                  &mPenJoinStyle, &mPenCapStyle, &customDashVector );
 
   // <se:PerpendicularOffset>
   if ( !qgsDoubleNear( mOffset, 0.0 ) )
   {
     QDomElement perpOffsetElem = doc.createElement( "se:PerpendicularOffset" );
-    perpOffsetElem.appendChild( doc.createTextNode( qgsDoubleToString( mOffset ) ) );
+    double offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+    perpOffsetElem.appendChild( doc.createTextNode( qgsDoubleToString( offset ) ) );
     symbolizerElem.appendChild( perpOffsetElem );
   }
 }
@@ -475,13 +472,6 @@ QgsSymbolLayer* QgsSimpleLineSymbolLayer::createFromSld( QDomElement &element )
   l->setUseCustomDashPattern( penStyle == Qt::CustomDashLine );
   l->setCustomDashVector( customDashVector );
   return l;
-}
-
-void QgsSimpleLineSymbolLayer::applySizeScale( QgsSymbolRenderContext& context, QPen& pen, QPen& selPen )
-{
-  double scaledWidth = QgsSymbolLayerUtils::convertToPainterUnits( context.renderContext(), mWidth, mWidthUnit, mWidthMapUnitScale );
-  pen.setWidthF( scaledWidth );
-  selPen.setWidthF( scaledWidth );
 }
 
 void QgsSimpleLineSymbolLayer::applyDataDefinedSymbology( QgsSymbolRenderContext& context, QPen& pen, QPen& selPen, double& offset )
@@ -613,10 +603,6 @@ double QgsSimpleLineSymbolLayer::dxfWidth( const QgsDxfExport& e, QgsSymbolRende
   {
     context.setOriginalValueVariable( mWidth );
     width = evaluateDataDefinedProperty( QgsSymbolLayer::EXPR_WIDTH, context, mWidth ).toDouble() * e.mapUnitScaleFactor( e.symbologyScaleDenominator(), widthUnit(), e.mapUnits() );
-  }
-  else if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale )
-  {
-    width = QgsSymbolLayerUtils::convertToPainterUnits( context.renderContext(), mWidth, mWidthUnit, mWidthMapUnitScale );
   }
 
   return width * e.mapUnitScaleFactor( e.symbologyScaleDenominator(), widthUnit(), e.mapUnits() );
@@ -823,11 +809,9 @@ void QgsMarkerLineSymbolLayer::startRender( QgsSymbolRenderContext& context )
   mMarker->setAlpha( context.alpha() );
 
   // if being rotated, it gets initialized with every line segment
-  int hints = 0;
+  QgsSymbol::RenderHints hints = 0;
   if ( mRotateMarker )
-    hints |= QgsSymbol::DataDefinedRotation;
-  if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale )
-    hints |= QgsSymbol::DataDefinedSizeScale;
+    hints |= QgsSymbol::DynamicRotation;
   mMarker->setRenderHints( hints );
 
   mMarker->startRender( context.renderContext(), context.fields() );
@@ -1413,7 +1397,8 @@ void QgsMarkerLineSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, c
         symbolizerElem.appendChild( QgsSymbolLayerUtils::createVendorOptionElement( doc, "placement", "points" ) );
         break;
       default:
-        gap = qgsDoubleToString( mInterval );
+        double interval = QgsSymbolLayerUtils::rescaleUom( mInterval, mIntervalUnit, props );
+        gap = qgsDoubleToString( interval );
         break;
     }
 
@@ -1446,14 +1431,15 @@ void QgsMarkerLineSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, c
     if ( !gap.isEmpty() )
     {
       QDomElement gapElem = doc.createElement( "se:Gap" );
-      QgsSymbolLayerUtils::createFunctionElement( doc, gapElem, gap );
+      QgsSymbolLayerUtils::createExpressionElement( doc, gapElem, gap );
       graphicStrokeElem.appendChild( gapElem );
     }
 
     if ( !qgsDoubleNear( mOffset, 0.0 ) )
     {
       QDomElement perpOffsetElem = doc.createElement( "se:PerpendicularOffset" );
-      perpOffsetElem.appendChild( doc.createTextNode( qgsDoubleToString( mOffset ) ) );
+      double offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+      perpOffsetElem.appendChild( doc.createTextNode( qgsDoubleToString( offset ) ) );
       symbolizerElem.appendChild( perpOffsetElem );
     }
   }
@@ -1554,6 +1540,7 @@ double QgsMarkerLineSymbolLayer::width() const
 void QgsMarkerLineSymbolLayer::setOutputUnit( QgsUnitTypes::RenderUnit unit )
 {
   QgsLineSymbolLayer::setOutputUnit( unit );
+  mMarker->setOutputUnit( unit );
   mIntervalUnit = unit;
   mOffsetUnit = unit;
   mOffsetAlongLineUnit = unit;

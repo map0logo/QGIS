@@ -154,11 +154,6 @@ QPainter::CompositionMode QgsMapLayer::blendMode() const
   return mBlendMode;
 }
 
-bool QgsMapLayer::draw( QgsRenderContext& rendererContext )
-{
-  Q_UNUSED( rendererContext );
-  return false;
-}
 
 bool QgsMapLayer::readLayerXml( const QDomElement& layerElement )
 {
@@ -234,7 +229,9 @@ bool QgsMapLayer::readLayerXml( const QDomElement& layerElement )
     // This is modified version of old QgsWmsProvider::parseUri
     // The new format has always params crs,format,layers,styles and that params
     // should not appear in old format url -> use them to identify version
-    if ( !mDataSource.contains( "crs=" ) && !mDataSource.contains( "format=" ) )
+    // XYZ tile layers do not need to contain crs,format params, but they have type=xyz
+    if ( !mDataSource.contains( "type=" ) &&
+         !mDataSource.contains( "crs=" ) && !mDataSource.contains( "format=" ) )
     {
       QgsDebugMsg( "Old WMS URI format detected -> converting to new format" );
       QgsDataSourceUri uri;
@@ -1429,7 +1426,6 @@ void QgsMapLayer::exportSldStyle( QDomDocument &doc, QString &errorMsg ) const
   // Create the root element
   QDomElement root = myDocument.createElementNS( "http://www.opengis.net/sld", "StyledLayerDescriptor" );
   root.setAttribute( "version", "1.1.0" );
-  root.setAttribute( "units", "mm" ); // default qgsmaprenderer is Millimeters
   root.setAttribute( "xsi:schemaLocation", "http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd" );
   root.setAttribute( "xmlns:ogc", "http://www.opengis.net/ogc" );
   root.setAttribute( "xmlns:se", "http://www.opengis.net/se" );
@@ -1449,7 +1445,13 @@ void QgsMapLayer::exportSldStyle( QDomDocument &doc, QString &errorMsg ) const
     return;
   }
 
-  if ( !vlayer->writeSld( namedLayerNode, myDocument, errorMsg ) )
+  QgsStringMap props;
+  if ( hasScaleBasedVisibility() )
+  {
+    props[ "scaleMinDenom" ] = QString::number( mMinScale );
+    props[ "scaleMaxDenom" ] = QString::number( mMaxScale );
+  }
+  if ( !vlayer->writeSld( namedLayerNode, myDocument, errorMsg, props ) )
   {
     errorMsg = tr( "Could not save symbology because:\n%1" ).arg( errorMsg );
     return;
@@ -1680,4 +1682,70 @@ void QgsMapLayer::emitStyleChanged()
 void QgsMapLayer::setExtent( const QgsRectangle &r )
 {
   mExtent = r;
+}
+
+static QList<const QgsMapLayer*> _depOutEdges( const QgsMapLayer* vl, const QgsMapLayer* that, const QSet<QgsMapLayerDependency>& layers )
+{
+  QList<const QgsMapLayer*> lst;
+  if ( vl == that )
+  {
+    Q_FOREACH ( const QgsMapLayerDependency& dep, layers )
+    {
+      if ( const QgsMapLayer* l = QgsMapLayerRegistry::instance()->mapLayer( dep.layerId() ) )
+        lst << l;
+    }
+  }
+  else
+  {
+    Q_FOREACH ( const QgsMapLayerDependency& dep, vl->dependencies() )
+    {
+      if ( const QgsMapLayer* l = QgsMapLayerRegistry::instance()->mapLayer( dep.layerId() ) )
+        lst << l;
+    }
+  }
+  return lst;
+}
+
+static bool _depHasCycleDFS( const QgsMapLayer* n, QHash<const QgsMapLayer*, int>& mark, const QgsMapLayer* that, const QSet<QgsMapLayerDependency>& layers )
+{
+  if ( mark.value( n ) == 1 ) // temporary
+    return true;
+  if ( mark.value( n ) == 0 ) // not visited
+  {
+    mark[n] = 1; // temporary
+    Q_FOREACH ( const QgsMapLayer* m, _depOutEdges( n, that, layers ) )
+    {
+      if ( _depHasCycleDFS( m, mark, that, layers ) )
+        return true;
+    }
+    mark[n] = 2; // permanent
+  }
+  return false;
+}
+
+bool QgsMapLayer::hasDependencyCycle( const QSet<QgsMapLayerDependency>& layers ) const
+{
+  QHash<const QgsMapLayer*, int> marks;
+  return _depHasCycleDFS( this, marks, this, layers );
+}
+
+QSet<QgsMapLayerDependency> QgsMapLayer::dependencies() const
+{
+  return mDependencies;
+}
+
+bool QgsMapLayer::setDependencies( const QSet<QgsMapLayerDependency>& oDeps )
+{
+  QSet<QgsMapLayerDependency> deps;
+  Q_FOREACH ( const QgsMapLayerDependency& dep, oDeps )
+  {
+    if ( dep.origin() == QgsMapLayerDependency::FromUser )
+      deps << dep;
+  }
+  if ( hasDependencyCycle( deps ) )
+    return false;
+
+  mDependencies = deps;
+  emit dependenciesChanged();
+  return true;
 }

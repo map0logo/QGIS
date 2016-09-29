@@ -33,7 +33,7 @@ QgsVectorLayerUndoCommandAddFeature::QgsVectorLayerUndoCommandAddFeature( QgsVec
   //assign a temporary id to the feature (use negative numbers)
   addedIdLowWaterMark--;
 
-  QgsDebugMsg( "Assigned feature id " + QString::number( addedIdLowWaterMark ) );
+  QgsDebugMsgLevel( "Assigned feature id " + QString::number( addedIdLowWaterMark ), 4 );
 
   // Force a feature ID (to keep other functions in QGIS happy,
   // providers will use their own new feature ID when we commit the new feature)
@@ -344,7 +344,8 @@ QgsVectorLayerUndoCommandDeleteAttribute::QgsVectorLayerUndoCommandDeleteAttribu
   QgsFields::FieldOrigin origin = fields.fieldOrigin( mFieldIndex );
   mOriginIndex = fields.fieldOriginIndex( mFieldIndex );
   mProviderField = ( origin == QgsFields::OriginProvider );
-  mOldEditorWidgetConfig = mBuffer->L->editFormConfig()->widgetConfig( mFieldIndex );
+  mFieldName = fields.field( mFieldIndex ).name();
+  mOldEditorWidgetConfig = mBuffer->L->editFormConfig().widgetConfig( mFieldName );
 
   if ( !mProviderField )
   {
@@ -410,7 +411,7 @@ void QgsVectorLayerUndoCommandDeleteAttribute::undo()
     }
   }
 
-  mBuffer->L->editFormConfig()->setWidgetConfig( mFieldIndex, mOldEditorWidgetConfig );
+  mBuffer->L->editFormConfig().setWidgetConfig( mFieldName, mOldEditorWidgetConfig );
 
   emit mBuffer->attributeAdded( mFieldIndex );
 }
@@ -428,7 +429,7 @@ void QgsVectorLayerUndoCommandDeleteAttribute::redo()
     mBuffer->mAddedAttributes.removeAt( mOriginIndex ); // removing temporary attribute
   }
 
-  mBuffer->L->editFormConfig()->removeWidgetConfig( mFieldIndex );
+  mBuffer->L->editFormConfig().removeWidgetConfig( mFieldName );
   mBuffer->handleAttributeDeleted( mFieldIndex ); // update changed attributes + new features
   mBuffer->updateLayerFields();
   emit mBuffer->attributeDeleted( mFieldIndex );

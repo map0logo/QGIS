@@ -19,6 +19,9 @@
 ***************************************************************************
 """
 from __future__ import print_function
+from builtins import filter
+from builtins import map
+from builtins import str
 __author__ = 'Julien Malik, Oscar Picas, Alexia Mondot'
 __copyright__ = '(C) 2013, CS Systemes d\'information  (CS SI)'
 # This will get replaced with a git SHA1 when you do a git archive
@@ -113,7 +116,7 @@ def get_inverted_parameters():
     """
     parameters = {getattr(otbApplication, each): each for each in dir(otbApplication) if 'ParameterType_' in each}
 
-    inverted_parameters = {key: value for value, key in parameters.items()}
+    inverted_parameters = {key: value for value, key in list(parameters.items())}
     inverted_parameters['ParameterType_Radius'] = 1
     inverted_parameters['ParameterType_RAM'] = 1
     inverted_parameters['ParameterType_ComplexInputImage'] = 9
@@ -235,7 +238,7 @@ def get_xml_description_from_application_name(our_app, criteria=None):
 
     # get parameters
     param_keys = [param_key for param_key in app_instance.GetParametersKeys()]
-    param_keys = filter(real_criteria, param_keys)
+    param_keys = list(filter(real_criteria, param_keys))
 
     for param_key in param_keys:
         if not param_key == "inxml" and not param_key == "outxml":
@@ -575,7 +578,7 @@ def adapt_list_to_string(c_list):
     if a_list[-1] is None:
         return ""
 
-    b_list = map(mystr, a_list)
+    b_list = list(map(mystr, a_list))
     b_list = [b_list[1], b_list[-1]]
     res = " ".join(b_list)
     return res
@@ -592,7 +595,7 @@ def get_automatic_ut_from_xml_description(the_root):
             raise Exception('Wrong client executable')
 
         rebu = get_list_from_node(dom_model, appkey)
-        the_result = map(adapt_list_to_string, rebu)
+        the_result = list(map(adapt_list_to_string, rebu))
         ut_command = cliName + " " + " ".join(the_result)
         return ut_command
     except Exception:
@@ -610,7 +613,7 @@ def list_reader(file_name, version):
 def get_otb_version():
     #TODO Find a way to retrieve installed otb version, force exception and parse otb-X.XX.X ?
     # return "3.18"
-    return "5.0"
+    return "5.6"
 
 
 def get_white_list():
@@ -652,7 +655,7 @@ def create_xml_descriptors():
                         except:
                             logger.error("Unit test for command %s must be fixed: %s" % (available_app, traceback.format_exc()))
             else:
-                logger.warning("%s is not in white list." % available_app)
+                logger.warning("%s (custom app) is not in white list." % available_app)
 
         else:
             if available_app in white_list and available_app not in black_list:
@@ -666,7 +669,8 @@ def create_xml_descriptors():
                     get_automatic_ut_from_xml_description(the_root)
                 except:
                     logger.error("Unit test for command %s must be fixed: %s" % (available_app, traceback.format_exc()))
-
+            else:
+                logger.warning("%s (not custom app) is not in white list." % available_app)
         # except Exception, e:
         #    logger.error(traceback.format_exc())
 
@@ -695,15 +699,15 @@ def create_html_description():
 if __name__ == "__main__":
     # Prepare the environment
     from qgis.core import QgsApplication
-    from qgis.PyQt.QtWidgets import QApplication
-    app = QApplication([])
-    QgsApplication.setPrefixPath("/usr", True)
+
+    app = QgsApplication([], True)
     QgsApplication.initQgis()
+
     # Prepare processing framework
     from processing.core.Processing import Processing
     Processing.initialize()
 
-#    import OTBSpecific_XMLcreation
+    import OTBSpecific_XMLcreation
 #     try:
 #         import processing
 #     except ImportError, e:
@@ -717,6 +721,16 @@ if __name__ == "__main__":
     create_xml_descriptors()
     create_html_description()
 
+    #Check if some application are not listed in the white/black list
+    logger = get_OTB_log()
+    white_list = get_white_list()
+    black_list = get_black_list()
+    for available_app in otbApplication.Registry.GetAvailableApplications():
+        try:
+            if available_app not in white_list and available_app not in black_list:
+                logger.error("Application " + available_app + " is not listed in white_list.xml or black_list.xml. Need to be fix.")
+        except Exception:
+            logger.error(traceback.format_exc())
+
     # Exit applications
     QgsApplication.exitQgis()
-    QApplication.exit()

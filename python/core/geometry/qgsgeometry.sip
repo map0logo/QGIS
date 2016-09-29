@@ -80,6 +80,8 @@ class QgsGeometry
     static QgsGeometry fromMultiPolygon( const QgsMultiPolygon& multipoly );
     /** Creates a new geometry from a QgsRectangle */
     static QgsGeometry fromRect( const QgsRectangle& rect );
+    /** Creates a new multipart geometry from a list of QgsGeometry objects*/
+    static QgsGeometry collectGeometry( const QList< QgsGeometry >& geometries );
 
     /**
      * Set the geometry, feeding in a geometry in GEOS format.
@@ -191,6 +193,15 @@ class QgsGeometry
      * @note added in QGIS 2.16
      */
     double distanceToVertex( int vertex ) const;
+
+    /**
+     * Returns the bisector angle for this geometry at the specified vertex.
+     * @param vertex vertex index to calculate bisector angle at
+     * @returns bisector angle, in radians clockwise from north
+     * @note added in QGIS 3.0
+     * @see interpolateAngle()
+     */
+    double angleAtVertex( int vertex ) const;
 
     /**
      * Returns the indexes of the vertices before and after the given vertex index.
@@ -312,9 +323,6 @@ class QgsGeometry
      * not disjoint with existing polygons of the feature
      */
     // TODO QGIS 3.0 returns an enum instead of a magic constant
-%If (!QT5_SUPPORT)
-    int addPart( const QList<QgsPoint> &points, QgsWkbTypes::GeometryType geomType = QgsWkbTypes::UnknownGeometry );
-%End
     int addPart( const QList<QgsPoint> &points, QgsWkbTypes::GeometryType geomType = QgsWkbTypes::UnknownGeometry )/PyName=addPoints/;
 
     /** Adds a new part to a the geometry.
@@ -324,9 +332,6 @@ class QgsGeometry
      * not disjoint with existing polygons of the feature
      */
     // TODO QGIS 3.0 returns an enum instead of a magic constant
-%If (!QT5_SUPPORT)
-    int addPart( const QList<QgsPointV2> &points, QgsWkbTypes::GeometryType geomType = QgsWkbTypes::UnknownGeometry );
-%End
     int addPart( const QList<QgsPointV2> &points, QgsWkbTypes::GeometryType geomType = QgsWkbTypes::UnknownGeometry )/PyName=addPointsV2/;
 
     /** Adds a new part to this geometry.
@@ -527,8 +532,31 @@ class QgsGeometry
     /**
      * Return interpolated point on line at distance
      * @note added in 1.9
+     * @see lineLocatePoint()
      */
-    QgsGeometry interpolate( double distance );
+    QgsGeometry interpolate( double distance ) const;
+
+    /** Returns a distance representing the location along this linestring of the closest point
+     * on this linestring geometry to the specified point. Ie, the returned value indicates
+     * how far along this linestring you need to traverse to get to the closest location
+     * where this linestring comes to the specified point.
+     * @param point point to seek proximity to
+     * @return distance along line, or -1 on error
+     * @note only valid for linestring geometries
+     * @see interpolate()
+     * @note added in QGIS 3.0
+     */
+    double lineLocatePoint( const QgsGeometry& point ) const;
+
+    /** Returns the angle parallel to the linestring or polygon boundary at the specified distance
+     * along the geometry. Angles are in radians, clockwise from north.
+     * If the distance coincides precisely at a node then the average angle from the segment either side
+     * of the node is returned.
+     * @param distance distance along geometry
+     * @note added in QGIS 3.0
+     * @see angleAtVertex()
+     */
+    double interpolateAngle( double distance ) const;
 
     /** Returns a geometry representing the points shared by this geometry and other. */
     QgsGeometry intersection( const QgsGeometry& geometry ) const;
@@ -815,14 +843,12 @@ class QgsGeometry
      * @param offset fraction of line to create new vertices along, between 0 and 1.0
      * eg the default value of 0.25 will create new vertices 25% and 75% along each line segment
      * of the geometry for each iteration. Smaller values result in "tighter" smoothing.
+     * @param minimumDistance minimum segment length to apply smoothing to
+     * @param maxAngle maximum angle at node (0-180) at which smoothing will be applied
      * @note added in 2.9
      */
-    QgsGeometry smooth( const unsigned int iterations, const double offset ) const;
-
-    /** Smooths a polygon using the Chaikin algorithm*/
-    QgsPolygon smoothPolygon( const QgsPolygon &polygon, const unsigned int iterations = 1, const double offset = 0.25 ) const;
-    /** Smooths a polyline using the Chaikin algorithm*/
-    QgsPolyline smoothLine( const QgsPolyline &polyline, const unsigned int iterations = 1, const double offset = 0.25 ) const;
+    QgsGeometry smooth( const unsigned int iterations = 1, const double offset = 0.25,
+                        double minimumDistance = -1.0, double maxAngle = 180.0 ) const;
 
     /** Creates and returns a new geometry engine
      */

@@ -143,7 +143,7 @@ class TestQgsExpressionCustomFunctions(unittest.TestCase):
     def testDump(self):
         for txt in [
             "id",
-            u"idä",
+            "idä",
             "\"id abc\"",
             "\"id	abc\"",
             "  abc   ",
@@ -168,7 +168,7 @@ class TestQgsExpressionCustomFunctions(unittest.TestCase):
             comment
             **/""": 'test*/'
         }
-        for e, exp_res in expressions.items():
+        for e, exp_res in list(expressions.items()):
             exp = QgsExpression(e)
             result = exp.evaluate()
             self.assertEqual(exp_res, result)
@@ -182,10 +182,18 @@ class TestQgsExpressionCustomFunctions(unittest.TestCase):
             "'test--'": 'test--',
             "'--test'": '--test',
         }
-        for e, exp_res in expressions.items():
+        for e, exp_res in list(expressions.items()):
             exp = QgsExpression(e)
             result = exp.evaluate()
             self.assertEqual(exp_res, result)
+
+    def testValid(self):
+        e = QgsExpression()
+        self.assertFalse(e.isValid())
+        e.setExpression('asdf||#@¼')
+        self.assertFalse(e.isValid())
+        e.setExpression('1')
+        self.assertTrue(e.isValid())
 
 if __name__ == "__main__":
     unittest.main()

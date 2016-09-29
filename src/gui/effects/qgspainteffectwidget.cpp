@@ -23,7 +23,7 @@
 #include "qgstransformeffect.h"
 #include "qgscoloreffect.h"
 #include "qgsstyle.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 
 //
 // draw source
@@ -594,7 +594,7 @@ void QgsGlowWidget::applyColorRamp()
     return;
   }
 
-  QgsVectorColorRamp* ramp = mRampComboBox->currentColorRamp();
+  QgsColorRamp* ramp = mRampComboBox->currentColorRamp();
   if ( !ramp )
     return;
 
@@ -961,6 +961,6 @@ void QgsColorEffectWidget::on_mGrayscaleCombo_currentIndexChanged( int index )
   if ( !mEffect )
     return;
 
-  mEffect->setGrayscaleMode(( QgsImageOperation::GrayscaleMode ) mGrayscaleCombo->itemData( mGrayscaleCombo->currentIndex() ).toInt() );
+  mEffect->setGrayscaleMode(( QgsImageOperation::GrayscaleMode ) mGrayscaleCombo->currentData().toInt() );
   emit changed();
 }

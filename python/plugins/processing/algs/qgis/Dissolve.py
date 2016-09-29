@@ -59,7 +59,7 @@ class Dissolve(GeoAlgorithm):
         self.group = 'Vector geometry tools'
         self.addParameter(ParameterVector(Dissolve.INPUT,
                                           self.tr('Input layer'),
-                                          [ParameterVector.VECTOR_TYPE_POLYGON, ParameterVector.VECTOR_TYPE_LINE]))
+                                          [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_LINE]))
         self.addParameter(ParameterBoolean(Dissolve.DISSOLVE_ALL,
                                            self.tr('Dissolve all (do not use fields)'), True))
         self.addParameter(ParameterTableMultipleField(Dissolve.FIELD,
@@ -159,7 +159,7 @@ class Dissolve(GeoAlgorithm):
             nFeat = len(attribute_dict)
 
             nElement = 0
-            for key, value in geometry_dict.items():
+            for key, value in list(geometry_dict.items()):
                 outFeat = QgsFeature()
                 nElement += 1
                 progress.setPercentage(int(nElement * 100 / nFeat))

@@ -35,6 +35,7 @@ QgsCompoundColorWidget::QgsCompoundColorWidget( QWidget *parent, const QColor& c
     , mAllowAlpha( true )
     , mLastCustomColorIndex( 0 )
     , mPickingColor( false )
+    , mDiscarded( false )
 {
   setupUi( this );
 
@@ -42,6 +43,8 @@ QgsCompoundColorWidget::QgsCompoundColorWidget( QWidget *parent, const QColor& c
   {
     // shuffle stuff around
     QVBoxLayout* newLayout = new QVBoxLayout();
+    newLayout->setMargin( 0 );
+    newLayout->setContentsMargins( 0, 0, 0, 0 );
     newLayout->addWidget( mTabWidget );
     newLayout->addWidget( mSlidersWidget );
     newLayout->addWidget( mPreviewWidget );
@@ -75,8 +78,8 @@ QgsCompoundColorWidget::QgsCompoundColorWidget( QWidget *parent, const QColor& c
 
   connect( mActionCopyColors, SIGNAL( triggered() ), mSchemeList, SLOT( copyColors() ) );
   connect( mActionPasteColors, SIGNAL( triggered() ), mSchemeList, SLOT( pasteColors() ) );
-  connect( mActionExportColors, SIGNAL( triggered() ), this, SLOT( exportColors() ) );
-  connect( mActionImportColors, SIGNAL( triggered() ), this, SLOT( importColors() ) );
+  connect( mActionExportColors, SIGNAL( triggered() ), mSchemeList, SLOT( showExportColorsDialog() ) );
+  connect( mActionImportColors, SIGNAL( triggered() ), mSchemeList, SLOT( showImportColorsDialog() ) );
   connect( mActionImportPalette, SIGNAL( triggered() ), this, SLOT( importPalette() ) );
   connect( mActionRemovePalette, SIGNAL( triggered() ), this, SLOT( removePalette() ) );
   connect( mActionNewPalette, SIGNAL( triggered() ), this, SLOT( newPalette() ) );
@@ -238,6 +241,10 @@ QgsCompoundColorWidget::QgsCompoundColorWidget( QWidget *parent, const QColor& c
 QgsCompoundColorWidget::~QgsCompoundColorWidget()
 {
   saveSettings();
+  if ( !mDiscarded )
+  {
+    QgsRecentColorScheme::addRecentColor( color() );
+  }
 }
 
 QColor QgsCompoundColorWidget::color() const
@@ -256,35 +263,6 @@ void QgsCompoundColorWidget::setAllowAlpha( const bool allowAlpha )
   {
     mAlphaLayout->setContentsMargins( 0, 0, 0, 0 );
     mAlphaLayout->setSpacing( 0 );
-  }
-}
-
-void QgsCompoundColorWidget::importColors()
-{
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
-  QString filePath = QFileDialog::getOpenFileName( this, tr( "Select palette file" ), lastDir, "GPL (*.gpl);;All files (*.*)" );
-  activateWindow();
-  if ( filePath.isEmpty() )
-  {
-    return;
-  }
-
-  //check if file exists
-  QFileInfo fileInfo( filePath );
-  if ( !fileInfo.exists() || !fileInfo.isReadable() )
-  {
-    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, file does not exist or is not readable" ) );
-    return;
-  }
-
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-  QFile file( filePath );
-  bool importOk = mSchemeList->importColorsFromGpl( file );
-  if ( !importOk )
-  {
-    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, no colors found in palette file" ) );
-    return;
   }
 }
 
@@ -441,35 +419,6 @@ QString QgsCompoundColorWidget::gplFilePath()
   }
 
   return palettesDir;
-}
-
-void QgsCompoundColorWidget::exportColors()
-{
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
-  QString fileName = QFileDialog::getSaveFileName( this, tr( "Palette file" ), lastDir, "GPL (*.gpl)" );
-  activateWindow();
-  if ( fileName.isEmpty() )
-  {
-    return;
-  }
-
-  // ensure filename contains extension
-  if ( !fileName.endsWith( ".gpl", Qt::CaseInsensitive ) )
-  {
-    fileName += ".gpl";
-  }
-
-  QFileInfo fileInfo( fileName );
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-
-  QFile file( fileName );
-  bool exportOk = mSchemeList->exportColorsToGpl( file );
-  if ( !exportOk )
-  {
-    QMessageBox::critical( nullptr, tr( "Error exporting" ), tr( "Error writing palette file" ) );
-    return;
-  }
 }
 
 void QgsCompoundColorWidget::schemeIndexChanged( int index )

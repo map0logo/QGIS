@@ -18,6 +18,7 @@ email                : lrssvtml (at) gmail (dot) com
  ***************************************************************************/
 Some portions of code were taken from https://code.google.com/p/pydee/
 """
+from builtins import range
 
 from qgis.PyQt.QtCore import QCoreApplication, QSize, QSettings, QFileInfo, Qt
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QTableWidgetItem
@@ -73,7 +74,7 @@ class optionsDialog(QDialog, Ui_SettingsDialogPythonConsole):
     def loadAPIFile(self):
         settings = QSettings()
         lastDirPath = settings.value("pythonConsole/lastDirAPIPath", "", type=str)
-        fileAPI = QFileDialog.getOpenFileName(
+        fileAPI, selected_filter = QFileDialog.getOpenFileName(
             self, "Open API File", lastDirPath, "API file (*.api)")
         if fileAPI:
             self.addAPI(fileAPI)
@@ -83,10 +84,10 @@ class optionsDialog(QDialog, Ui_SettingsDialogPythonConsole):
 
     def _prepareAPI(self):
         if self.tableWidget.rowCount() != 0:
-            pap_file = QFileDialog().getSaveFileName(self,
-                                                     "",
-                                                     '*.pap',
-                                                     "Prepared APIs file (*.pap)")
+            pap_file, filter = QFileDialog().getSaveFileName(self,
+                                                             "",
+                                                             '*.pap',
+                                                             "Prepared APIs file (*.pap)")
         else:
             QMessageBox.information(self, self.tr("Warning!"),
                                     self.tr('You need to add some APIs file in order to compile'))

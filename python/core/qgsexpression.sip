@@ -12,7 +12,22 @@ class QgsExpression
      * loop in which this expression is used.
      */
     QgsExpression( const QString& expr );
+    /**
+     * Create an empty expression.
+     *
+     * @note Added in QGIS 3.0
+     */
+    QgsExpression();
+
     ~QgsExpression();
+
+    /**
+     * Checks if this expression is valid.
+     * A valid expression could be parsed but does not necessarily evaluate properly.
+     *
+     * @note Added in QGIS 3.0
+     */
+    bool isValid() const;
 
     //! Returns true if an error occurred when parsing the input expression
     bool hasParserError() const;
@@ -73,9 +88,16 @@ class QgsExpression
      * @param context optional expression context
      * @param errorMessage will be filled with any error message from the validation
      * @returns true if string is a valid expression
-     * @note added in QGIS 2.12
+     * @note added in QGIS 3.0
      */
-    static bool isValid( const QString& text, const QgsExpressionContext* context, QString &errorMessage );
+    static bool checkExpression( const QString& text, const QgsExpressionContext* context, QString &errorMessage /Out/ );
+
+    /**
+     * Set the expression string, will reset the whole internal structure.
+     *
+     * @note Added in QGIS 3.0
+     */
+    void setExpression( const QString& expression );
 
     //! Return the original, unmodified expression string.
     //! If there was none supplied because it was constructed by sole

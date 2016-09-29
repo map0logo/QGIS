@@ -339,13 +339,13 @@ void QgsAttributeTableModel::loadAttributes()
 
   for ( int idx = 0; idx < fields.count(); ++idx )
   {
-    const QString widgetType = layer()->editFormConfig()->widgetType( idx );
-    QgsEditorWidgetFactory* widgetFactory = QgsEditorWidgetRegistry::instance()->factory( widgetType );
+    const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( layer(), fields[idx].name() );
+    QgsEditorWidgetFactory* widgetFactory = QgsEditorWidgetRegistry::instance()->factory( setup.type() );
     if ( widgetFactory )
     {
       mWidgetFactories.append( widgetFactory );
-      mWidgetConfigs.append( layer()->editFormConfig()->widgetConfig( idx ) );
-      mAttributeWidgetCaches.append( widgetFactory->createCache( layer(), idx, mWidgetConfigs.last() ) );
+      mWidgetConfigs.append( setup.config() );
+      mAttributeWidgetCaches.append( widgetFactory->createCache( layer(), idx, setup.config() ) );
 
       attributes << idx;
     }
@@ -542,12 +542,7 @@ QVariant QgsAttributeTableModel::headerData( int section, Qt::Orientation orient
     }
     else if ( section >= 0 && section < mFieldCount )
     {
-      QString attributeName = layer()->attributeAlias( mAttributes.at( section ) );
-      if ( attributeName.isEmpty() )
-      {
-        QgsField field = layer()->fields().at( mAttributes.at( section ) );
-        attributeName = field.name();
-      }
+      QString attributeName = layer()->fields().at( mAttributes.at( section ) ).displayName();
       return QVariant( attributeName );
     }
     else
@@ -727,7 +722,7 @@ Qt::ItemFlags QgsAttributeTableModel::flags( const QModelIndex &index ) const
   Qt::ItemFlags flags = QAbstractItemModel::flags( index );
 
   if ( layer()->isEditable() &&
-       !layer()->editFormConfig()->readOnly( mAttributes[index.column()] ) &&
+       !layer()->editFormConfig().readOnly( mAttributes[index.column()] ) &&
        (( layer()->dataProvider() && layer()->dataProvider()->capabilities() & QgsVectorDataProvider::ChangeAttributeValues ) ||
         FID_IS_NEW( rowToId( index.row() ) ) ) )
     flags |= Qt::ItemIsEditable;

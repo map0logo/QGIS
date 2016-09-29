@@ -23,6 +23,10 @@
 #include "qgsrelationmanager.h"
 #include "qgsproject.h"
 #include "qgscsexception.h"
+#include "qgslogger.h"
+
+#include <QJsonDocument>
+#include <QJsonArray>
 
 QgsJSONExporter::QgsJSONExporter( const QgsVectorLayer* vectorLayer, int precision )
     : mPrecision( precision )
@@ -246,38 +250,9 @@ QString QgsJSONUtils::encodeValue( const QVariant &value )
       return value.toBool() ? "true" : "false";
 
     case QVariant::StringList:
-    {
-      QStringList input = value.toStringList();
-      QStringList output;
-      Q_FOREACH ( const QString& string, input )
-      {
-        output << encodeValue( string );
-      }
-      return output.join( "," ).prepend( '[' ).append( ']' );
-    }
-
     case QVariant::List:
-    {
-      QVariantList input = value.toList();
-      QStringList output;
-      Q_FOREACH ( const QVariant& v, input )
-      {
-        output << encodeValue( v );
-      }
-      return output.join( "," ).prepend( '[' ).append( ']' );
-    }
-
     case QVariant::Map:
-    {
-      QMap< QString, QVariant > input = value.toMap();
-      QStringList output;
-      QMap< QString, QVariant >::const_iterator it = input.constBegin();
-      for ( ; it != input.constEnd(); ++it )
-      {
-        output << encodeValue( it.key() ) + ':' + encodeValue( it.value() );
-      }
-      return output.join( ",\n" ).prepend( '{' ).append( '}' );
-    }
+      return QString::fromUtf8( QJsonDocument::fromVariant( value ).toJson( QJsonDocument::Compact ) );
 
     default:
     case QVariant::String:
@@ -309,3 +284,28 @@ QString QgsJSONUtils::exportAttributes( const QgsFeature& feature )
   return attrs.prepend( '{' ).append( '}' );
 }
 
+QVariantList QgsJSONUtils::parseArray( const QString& json, QVariant::Type type )
+{
+  QJsonParseError error;
+  const QJsonDocument jsonDoc = QJsonDocument::fromJson( json.toUtf8(), &error );
+  QVariantList result;
+  if ( error.error != QJsonParseError::NoError )
+  {
+    QgsLogger::warning( QString( "Cannot parse json (%1): %2" ).arg( error.errorString() ).arg( json ) );
+    return result;
+  }
+  if ( !jsonDoc.isArray() )
+  {
+    QgsLogger::warning( QString( "Cannot parse json (%1) as array: %2" ).arg( error.errorString() ).arg( json ) );
+    return result;
+  }
+  Q_FOREACH ( const QJsonValue cur, jsonDoc.array() )
+  {
+    QVariant curVariant = cur.toVariant();
+    if ( curVariant.convert( type ) )
+      result.append( curVariant );
+    else
+      QgsLogger::warning( QString( "Cannot convert json array element: %1" ).arg( cur.toString() ) );
+  }
+  return result;
+}

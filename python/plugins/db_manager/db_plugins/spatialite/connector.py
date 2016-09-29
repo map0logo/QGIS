@@ -19,6 +19,10 @@ email                : brush.tyler@gmail.com
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
+from builtins import map
+
+from functools import cmp_to_key
 
 from qgis.PyQt.QtCore import QFile
 from qgis.PyQt.QtWidgets import QApplication
@@ -26,7 +30,7 @@ from qgis.PyQt.QtWidgets import QApplication
 from ..connector import DBConnector
 from ..plugin import ConnectionError, DbError, Table
 
-from pyspatialite import dbapi2 as sqlite
+from qgis.utils import spatialite_connect
 
 
 def classFactory():
@@ -43,7 +47,7 @@ class SpatiaLiteDBConnector(DBConnector):
             raise ConnectionError(QApplication.translate("DBManagerPlugin", '"{0}" not found').format(self.dbname))
 
         try:
-            self.connection = sqlite.connect(self._connectionInfo())
+            self.connection = spatialite_connect(self._connectionInfo())
 
         except self.connection_error_types() as e:
             raise ConnectionError(e)
@@ -53,14 +57,14 @@ class SpatiaLiteDBConnector(DBConnector):
         self._checkGeopackage()
 
     def _connectionInfo(self):
-        return unicode(self.dbname)
+        return str(self.dbname)
 
     @classmethod
     def isValidDatabase(self, path):
         if not QFile.exists(path):
             return False
         try:
-            conn = sqlite.connect(path)
+            conn = spatialite_connect(path)
         except self.connection_error_types():
             return False
 
@@ -131,7 +135,7 @@ class SpatiaLiteDBConnector(DBConnector):
                 result = False
         else:
             # Spatialite < 4.2 has no GeoPackage support, check for filename and GPKG layout
-            ver = map(int, self.getInfo()[0].split('.')[0:2])
+            ver = list(map(int, self.getInfo()[0].split('.')[0:2]))
             if ver[0] < 4 or (ver[0] == 4 and ver[1] < 2):
                 hasGpkgFileExt = self.dbname[-5:] == ".gpkg" or self.dbname[-11:] == ".geopackage"
 
@@ -260,7 +264,7 @@ class SpatiaLiteDBConnector(DBConnector):
         for i, tbl in enumerate(items):
             tbl.insert(3, tbl[1] in sys_tables)
 
-        return sorted(items, cmp=lambda x, y: cmp(x[1], y[1]))
+        return sorted(items, key=cmp_to_key(lambda x, y: (x[1] > y[1]) - (x[1] < y[1])))
 
     def getVectorTables(self, schema=None):
         """ get list of table with a geometry column

@@ -10,8 +10,9 @@ it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 """
-from __future__ import print_function
+
 from future import standard_library
+import collections
 standard_library.install_aliases()
 
 __author__ = 'Larry Shaffer'
@@ -29,7 +30,7 @@ import glob
 import shutil
 import tempfile
 
-from qgis.PyQt.QtCore import QSize, qDebug
+from qgis.PyQt.QtCore import QSize, qDebug, Qt
 from qgis.PyQt.QtGui import QFont, QColor
 
 from qgis.core import (
@@ -259,6 +260,7 @@ class TestQgsPalLabeling(unittest.TestCase):
         font.setPointSize(32)
         lyr.textFont = font
         lyr.textNamedStyle = 'Roman'
+        lyr.bufferJoinStyle = Qt.BevelJoin  # handle change of default join style
         return lyr
 
     @staticmethod
@@ -274,7 +276,7 @@ class TestQgsPalLabeling(unittest.TestCase):
         for attr in dir(lyr):
             if attr[0].islower() and not attr.startswith("__"):
                 value = getattr(lyr, attr)
-                if not callable(value):
+                if not isinstance(value, collections.Callable):
                     res[attr] = value
         return res
 
@@ -465,14 +467,14 @@ def runSuite(module, tests):
                     datetime.datetime.now().strftime('%Y-%m-%d %X')
         report = '<html><head><title>{0}</title></head><body>'.format(teststamp)
         report += '\n<h2>Failed Tests: {0}</h2>'.format(len(PALREPORTS))
-        for k, v in PALREPORTS.items():
+        for k, v in list(PALREPORTS.items()):
             report += '\n<h3>{0}</h3>\n{1}'.format(k, v)
         report += '</body></html>'
 
-        tmp = tempfile.NamedTemporaryFile(suffix=".html", delete=False)
-        tmp.write(report)
-        tmp.close()
-        openInBrowserTab('file://' + tmp.name)
+        tmp_name = getTempfilePath('html')
+        with open(tmp_name, 'wt') as report_file:
+            report_file.write(report)
+        openInBrowserTab('file://' + tmp_name)
 
     return res
 

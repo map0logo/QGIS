@@ -20,8 +20,9 @@
 
 #include "qgssymbol.h"
 #include "qgssymbollayerutils.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 #include "qgsstyle.h"
+#include "qgslogger.h"
 
 #include "qgssymbolselectordialog.h"
 #include "qgsexpressionbuilderdialog.h"
@@ -548,7 +549,6 @@ void QgsCategorizedSymbolRendererWidget::changeCategorizedSymbol()
 {
   QgsSymbol* newSymbol = mCategorizedSymbol->clone();
   QgsSymbolSelectorWidget* dlg = new QgsSymbolSelectorWidget( newSymbol, mStyle, mLayer, nullptr );
-  dlg->setDockMode( this->dockMode() );
   dlg->setMapCanvas( mMapCanvas );
 
   connect( dlg, SIGNAL( widgetChanged() ), this, SLOT( updateSymbolsFromWidget() ) );
@@ -593,7 +593,6 @@ void QgsCategorizedSymbolRendererWidget::changeCategorySymbol()
   }
 
   QgsSymbolSelectorWidget* dlg = new QgsSymbolSelectorWidget( symbol, mStyle, mLayer, nullptr );
-  dlg->setDockMode( this->dockMode() );
   dlg->setMapCanvas( mMapCanvas );
   connect( dlg, SIGNAL( widgetChanged() ), this, SLOT( updateSymbolsFromWidget() ) );
   connect( dlg, SIGNAL( panelAccepted( QgsPanelWidget* ) ), this, SLOT( cleanUpSymbolSelector( QgsPanelWidget* ) ) );
@@ -629,9 +628,9 @@ static void _createCategories( QgsCategoryList& cats, QList<QVariant>& values, Q
   }
 }
 
-QgsVectorColorRamp* QgsCategorizedSymbolRendererWidget::getColorRamp()
+QgsColorRamp* QgsCategorizedSymbolRendererWidget::getColorRamp()
 {
-  QgsVectorColorRamp* ramp = cboCategorizedColorRamp->currentColorRamp();
+  QgsColorRamp* ramp = cboCategorizedColorRamp->currentColorRamp();
   if ( !ramp )
   {
     if ( cboCategorizedColorRamp->count() == 0 )
@@ -760,11 +759,10 @@ void QgsCategorizedSymbolRendererWidget::addCategories()
   // recreate renderer
   QgsCategorizedSymbolRenderer *r = new QgsCategorizedSymbolRenderer( attrName, cats );
   r->setSourceSymbol( mCategorizedSymbol->clone() );
-  r->setScaleMethod( mRenderer->scaleMethod() );
-  r->setSizeScaleField( mRenderer->sizeScaleField() );
   r->setInvertedColorRamp( cbxInvertedColorRamp->isChecked() );
-  QgsVectorColorRamp* ramp = getColorRamp();
-  if ( ramp ) r->setSourceColorRamp( ramp->clone() );
+  QScopedPointer< QgsColorRamp > ramp( getColorRamp() );
+  if ( ramp )
+    r->setSourceColorRamp( ramp->clone() );
 
   if ( mModel )
   {
@@ -772,8 +770,8 @@ void QgsCategorizedSymbolRendererWidget::addCategories()
   }
   delete mRenderer;
   mRenderer = r;
-  if ( ! keepExistingColors && ramp ) applyColorRamp();
-  delete ramp;
+  if ( ! keepExistingColors && ramp )
+    applyColorRamp();
   emit widgetChanged();
 }
 
@@ -784,7 +782,7 @@ void QgsCategorizedSymbolRendererWidget::applyColorRamp()
   else
     mButtonEditRamp->setEnabled( true );
 
-  QgsVectorColorRamp* ramp = getColorRamp();
+  QgsColorRamp* ramp = getColorRamp();
   if ( ramp )
   {
     mRenderer->updateColorRamp( ramp, cbxInvertedColorRamp->isChecked() );
@@ -834,18 +832,6 @@ void QgsCategorizedSymbolRendererWidget::addCategory()
   QgsSymbol *symbol = QgsSymbol::defaultSymbol( mLayer->geometryType() );
   QgsRendererCategory cat( QString(), symbol, QString(), true );
   mModel->addCategory( cat );
-  emit widgetChanged();
-}
-
-void QgsCategorizedSymbolRendererWidget::sizeScaleFieldChanged( const QString& fldName )
-{
-  mRenderer->setSizeScaleField( fldName );
-  emit widgetChanged();
-}
-
-void QgsCategorizedSymbolRendererWidget::scaleMethodChanged( QgsSymbol::ScaleMethod scaleMethod )
-{
-  mRenderer->setScaleMethod( scaleMethod );
   emit widgetChanged();
 }
 
@@ -983,11 +969,11 @@ void QgsCategorizedSymbolRendererWidget::matchToSymbolsFromXml()
 
 void QgsCategorizedSymbolRendererWidget::cleanUpSymbolSelector( QgsPanelWidget *container )
 {
-  if ( container )
-  {
-    QgsSymbolSelectorWidget* dlg = qobject_cast<QgsSymbolSelectorWidget*>( container );
-    delete dlg->symbol();
-  }
+  QgsSymbolSelectorWidget* dlg = qobject_cast<QgsSymbolSelectorWidget*>( container );
+  if ( !dlg )
+    return;
+
+  delete dlg->symbol();
 }
 
 void QgsCategorizedSymbolRendererWidget::updateSymbolsFromWidget()

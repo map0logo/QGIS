@@ -135,7 +135,7 @@ QgsComposerMapWidget::QgsComposerMapWidget( QgsComposerMap* composerMap )
   // keep layers from preset button
   QMenu* menuKeepLayers = new QMenu( this );
   mLayerListFromPresetButton->setMenu( menuKeepLayers );
-  mLayerListFromPresetButton->setIcon( QgsApplication::getThemeIcon( "/mActionShowAllLayers.png" ) );
+  mLayerListFromPresetButton->setIcon( QgsApplication::getThemeIcon( "/mActionShowAllLayers.svg" ) );
   mLayerListFromPresetButton->setToolTip( tr( "Set layer list from a map theme" ) );
   connect( menuKeepLayers, SIGNAL( aboutToShow() ), this, SLOT( aboutToShowKeepLayersVisibilityPresetsMenu() ) );
 
@@ -1005,10 +1005,6 @@ void QgsComposerMapWidget::handleChangedAnnotationPosition( QgsComposerMapGrid::
   if ( text == tr( "Inside frame" ) )
   {
     grid->setAnnotationPosition( QgsComposerMapGrid::InsideMapFrame, border );
-  }
-  else if ( text == tr( "Disabled" ) )
-  {
-    grid->setAnnotationPosition( QgsComposerMapGrid::Disabled, border );
   }
   else //Outside frame
   {

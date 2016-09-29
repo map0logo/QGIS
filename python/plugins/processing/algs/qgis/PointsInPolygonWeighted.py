@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -53,15 +54,15 @@ class PointsInPolygonWeighted(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector analysis tools')
 
         self.addParameter(ParameterVector(self.POLYGONS,
-                                          self.tr('Polygons'), [ParameterVector.VECTOR_TYPE_POLYGON]))
+                                          self.tr('Polygons'), [dataobjects.TYPE_VECTOR_POLYGON]))
         self.addParameter(ParameterVector(self.POINTS,
-                                          self.tr('Points'), [ParameterVector.VECTOR_TYPE_POINT]))
+                                          self.tr('Points'), [dataobjects.TYPE_VECTOR_POINT]))
         self.addParameter(ParameterTableField(self.WEIGHT,
                                               self.tr('Weight field'), self.POINTS))
         self.addParameter(ParameterString(self.FIELD,
                                           self.tr('Count field name'), 'NUMPOINTS'))
 
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Weighted count')))
+        self.addOutput(OutputVector(self.OUTPUT, self.tr('Weighted count'), datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def processAlgorithm(self, progress):
         polyLayer = dataobjects.getObjectFromUri(self.getParameterValue(self.POLYGONS))
@@ -96,14 +97,14 @@ class PointsInPolygonWeighted(GeoAlgorithm):
             count = 0
             points = spatialIndex.intersects(geom.boundingBox())
             if len(points) > 0:
-                progress.setText(unicode(len(points)))
+                progress.setText(str(len(points)))
                 request = QgsFeatureRequest().setFilterFids(points)
                 fit = pointLayer.getFeatures(request)
                 ftPoint = QgsFeature()
                 while fit.nextFeature(ftPoint):
                     tmpGeom = QgsGeometry(ftPoint.geometry())
                     if engine.contains(tmpGeom.geometry()):
-                        weight = unicode(ftPoint.attributes()[fieldIdx])
+                        weight = str(ftPoint.attributes()[fieldIdx])
                         try:
                             count += float(weight)
                         except:

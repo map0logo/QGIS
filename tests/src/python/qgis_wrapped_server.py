@@ -10,7 +10,7 @@ it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 """
-from __future__ import print_function
+
 from future import standard_library
 standard_library.install_aliases()
 
@@ -24,6 +24,7 @@ __revision__ = '$Format:%H$'
 import os
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from qgis.core import QgsApplication
 from qgis.server import QgsServer
 
 try:
@@ -31,6 +32,7 @@ try:
 except KeyError:
     QGIS_SERVER_DEFAULT_PORT = 8081
 
+qgs_app = QgsApplication([], False)
 qgs_server = QgsServer()
 
 
@@ -38,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         # CGI vars:
-        for k, v in self.headers.items():
+        for k, v in list(self.headers.items()):
             qgs_server.putenv('HTTP_%s' % k.replace(' ', '-').replace('-', '_').replace(' ', '-').upper(), v)
         qgs_server.putenv('SERVER_PORT', str(self.server.server_port))
         qgs_server.putenv('SERVER_NAME', self.server.server_name)
@@ -50,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(int(headers_dict['Status'].split(' ')[0]))
         except:
             self.send_response(200)
-        for k, v in headers_dict.items():
+        for k, v in list(headers_dict.items()):
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
@@ -70,3 +72,4 @@ if __name__ == '__main__':
     print('Starting server on localhost:%s, use <Ctrl-C> to stop' %
           QGIS_SERVER_DEFAULT_PORT)
     server.serve_forever()
+    qgs_app.exitQgis()

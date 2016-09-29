@@ -249,8 +249,9 @@ void QgsVectorLayerSaveAsDialog::on_mFormatComboBox_currentIndexChanged( int idx
     bool foundFieldThatCanBeExportedAsDisplayedValue = false;
     for ( int i = 0; i < mLayer->fields().size(); ++i )
     {
-      if ( mLayer->editFormConfig()->widgetType( i ) != "TextEdit" &&
-           QgsEditorWidgetRegistry::instance()->factory( mLayer->editFormConfig()->widgetType( i ) ) )
+      const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( mLayer, mLayer->fields()[i].name() );
+      if ( setup.type() != "TextEdit" &&
+           QgsEditorWidgetRegistry::instance()->factory( setup.type() ) )
       {
         foundFieldThatCanBeExportedAsDisplayedValue = true;
         break;
@@ -285,10 +286,11 @@ void QgsVectorLayerSaveAsDialog::on_mFormatComboBox_currentIndexChanged( int idx
 
       if ( foundFieldThatCanBeExportedAsDisplayedValue )
       {
+        const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( mLayer, mLayer->fields()[i].name() );
         QgsEditorWidgetFactory *factory = nullptr;
         if ( flags == Qt::ItemIsEnabled &&
-             mLayer->editFormConfig()->widgetType( i ) != "TextEdit" &&
-             ( factory = QgsEditorWidgetRegistry::instance()->factory( mLayer->editFormConfig()->widgetType( i ) ) ) )
+             setup.type() != "TextEdit" &&
+             ( factory = QgsEditorWidgetRegistry::instance()->factory( setup.type() ) ) )
         {
           item = new QTableWidgetItem( tr( "Use %1" ).arg( factory->name() ) );
           item->setFlags(( selectAllFields ) ? ( Qt::ItemIsEnabled | Qt::ItemIsUserCheckable ) : Qt::ItemIsUserCheckable );
@@ -516,7 +518,7 @@ QString QgsVectorLayerSaveAsDialog::encoding() const
 
 QString QgsVectorLayerSaveAsDialog::format() const
 {
-  return mFormatComboBox->itemData( mFormatComboBox->currentIndex() ).toString();
+  return mFormatComboBox->currentData().toString();
 }
 
 long QgsVectorLayerSaveAsDialog::crs() const
@@ -549,7 +551,7 @@ QStringList QgsVectorLayerSaveAsDialog::datasourceOptions() const
         case QgsVectorFileWriter::Set:
         {
           QComboBox* cb = mDatasourceOptionsGroupBox->findChild<QComboBox*>( it.key() );
-          if ( cb && !cb->itemData( cb->currentIndex() ).isNull() )
+          if ( cb && !cb->currentData().isNull() )
             options << QString( "%1=%2" ).arg( it.key(), cb->currentText() );
           break;
         }
@@ -601,7 +603,7 @@ QStringList QgsVectorLayerSaveAsDialog::layerOptions() const
         case QgsVectorFileWriter::Set:
         {
           QComboBox* cb = mLayerOptionsGroupBox->findChild<QComboBox*>( it.key() );
-          if ( cb && !cb->itemData( cb->currentIndex() ).isNull() )
+          if ( cb && !cb->currentData().isNull() )
             options << QString( "%1=%2" ).arg( it.key(), cb->currentText() );
           break;
         }
@@ -626,11 +628,6 @@ QStringList QgsVectorLayerSaveAsDialog::layerOptions() const
   }
 
   return options + mOgrLayerOptions->toPlainText().split( '\n' );
-}
-
-bool QgsVectorLayerSaveAsDialog::attributeSelection() const
-{
-  return true;
 }
 
 QgsAttributeList QgsVectorLayerSaveAsDialog::selectedAttributes() const
@@ -672,7 +669,7 @@ bool QgsVectorLayerSaveAsDialog::addToCanvas() const
 
 int QgsVectorLayerSaveAsDialog::symbologyExport() const
 {
-  return mSymbologyExportComboBox->itemData( mSymbologyExportComboBox->currentIndex() ).toInt();
+  return mSymbologyExportComboBox->currentData().toInt();
 }
 
 double QgsVectorLayerSaveAsDialog::scaleDenominator() const
@@ -702,7 +699,7 @@ bool QgsVectorLayerSaveAsDialog::onlySelected() const
 
 QgsWkbTypes::Type QgsVectorLayerSaveAsDialog::geometryType() const
 {
-  int currentIndexData = mGeometryTypeComboBox->itemData( mGeometryTypeComboBox->currentIndex() ).toInt();
+  int currentIndexData = mGeometryTypeComboBox->currentData().toInt();
   if ( currentIndexData == -1 )
   {
     //automatic
@@ -714,7 +711,7 @@ QgsWkbTypes::Type QgsVectorLayerSaveAsDialog::geometryType() const
 
 bool QgsVectorLayerSaveAsDialog::automaticGeometryType() const
 {
-  int currentIndexData = mGeometryTypeComboBox->itemData( mGeometryTypeComboBox->currentIndex() ).toInt();
+  int currentIndexData = mGeometryTypeComboBox->currentData().toInt();
   return currentIndexData == -1;
 }
 

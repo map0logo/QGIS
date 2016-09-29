@@ -130,8 +130,8 @@ bool QgsSimpleMarkerSymbolLayerBase::shapeIsFilled( QgsSimpleMarkerSymbolLayerBa
 
 void QgsSimpleMarkerSymbolLayerBase::startRender( QgsSymbolRenderContext &context )
 {
-  bool hasDataDefinedRotation = context.renderHints() & QgsSymbol::DataDefinedRotation || hasDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE );
-  bool hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  bool hasDataDefinedRotation = context.renderHints() & QgsSymbol::DynamicRotation || hasDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE );
+  bool hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
 
   // use either QPolygonF or QPainterPath for drawing
   if ( !prepareMarkerShape( mShape ) ) // drawing as a polygon
@@ -612,7 +612,7 @@ double QgsSimpleMarkerSymbolLayerBase::calculateSize( QgsSymbolRenderContext &co
 {
   double scaledSize = mSize;
 
-  hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
   bool ok = true;
   if ( hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE ) )
   {
@@ -654,7 +654,7 @@ void QgsSimpleMarkerSymbolLayerBase::calculateOffsetAndRotation( QgsSymbolRender
     usingDataDefinedRotation = ok;
   }
 
-  hasDataDefinedRotation = context.renderHints() & QgsSymbol::DataDefinedRotation || usingDataDefinedRotation;
+  hasDataDefinedRotation = context.renderHints() & QgsSymbol::DynamicRotation || usingDataDefinedRotation;
   if ( hasDataDefinedRotation )
   {
     // For non-point markers, "dataDefinedRotation" means following the
@@ -682,20 +682,6 @@ void QgsSimpleMarkerSymbolLayerBase::calculateOffsetAndRotation( QgsSymbolRender
 // QgsSimpleMarkerSymbolLayer
 //
 
-QgsSimpleMarkerSymbolLayer::QgsSimpleMarkerSymbolLayer( const QString& name, const QColor& color, const QColor& borderColor, double size, double angle, QgsSymbol::ScaleMethod scaleMethod,
-    Qt::PenJoinStyle penJoinStyle )
-    : QgsSimpleMarkerSymbolLayerBase( decodeShape( name ), size, angle, scaleMethod )
-    , mBorderColor( borderColor )
-    , mOutlineStyle( Qt::SolidLine )
-    , mOutlineWidth( 0 )
-    , mOutlineWidthUnit( QgsUnitTypes::RenderMillimeters )
-    , mPenJoinStyle( penJoinStyle )
-    , mName( name )
-    , mUsingCache( false )
-{
-  mColor = color;
-}
-
 QgsSimpleMarkerSymbolLayer::QgsSimpleMarkerSymbolLayer( QgsSimpleMarkerSymbolLayerBase::Shape shape, double size, double angle, QgsSymbol::ScaleMethod scaleMethod, const QColor& color, const QColor& borderColor, Qt::PenJoinStyle penJoinStyle )
     : QgsSimpleMarkerSymbolLayerBase( shape, size, angle, scaleMethod )
     , mBorderColor( borderColor )
@@ -703,7 +689,6 @@ QgsSimpleMarkerSymbolLayer::QgsSimpleMarkerSymbolLayer( QgsSimpleMarkerSymbolLay
     , mOutlineWidth( 0 )
     , mOutlineWidthUnit( QgsUnitTypes::RenderMillimeters )
     , mPenJoinStyle( penJoinStyle )
-    , mName( encodeShape( shape ) )
     , mUsingCache( false )
 {
   mColor = color;
@@ -838,8 +823,8 @@ void QgsSimpleMarkerSymbolLayer::startRender( QgsSymbolRenderContext& context )
   mSelPen.setStyle( mOutlineStyle );
   mSelPen.setWidthF( QgsSymbolLayerUtils::convertToPainterUnits( context.renderContext(), mOutlineWidth, mOutlineWidthUnit, mOutlineWidthMapUnitScale ) );
 
-  bool hasDataDefinedRotation = context.renderHints() & QgsSymbol::DataDefinedRotation || hasDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE );
-  bool hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  bool hasDataDefinedRotation = context.renderHints() & QgsSymbol::DynamicRotation || hasDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE );
+  bool hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
 
   // use caching only when:
   // - size, rotation, shape, color, border color is not data-defined
@@ -942,21 +927,6 @@ bool QgsSimpleMarkerSymbolLayer::prepareCache( QgsSymbolRenderContext& context )
   }
 
   return true;
-}
-
-bool QgsSimpleMarkerSymbolLayer::prepareShape( const QString& name )
-{
-  return shapeToPolygon( name.isNull() ? mShape : decodeShape( name ), mPolygon );
-}
-
-bool QgsSimpleMarkerSymbolLayer::prepareShape( const QString& name, QPolygonF &polygon ) const
-{
-  return shapeToPolygon( decodeShape( name ), polygon );
-}
-
-bool QgsSimpleMarkerSymbolLayer::preparePath( QString name )
-{
-  return prepareMarkerPath( decodeShape( name ) );
 }
 
 void QgsSimpleMarkerSymbolLayer::draw( QgsSymbolRenderContext &context, QgsSimpleMarkerSymbolLayerBase::Shape shape, const QPolygonF &polygon, const QPainterPath &path )
@@ -1122,7 +1092,9 @@ void QgsSimpleMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement 
   QDomElement graphicElem = doc.createElement( "se:Graphic" );
   element.appendChild( graphicElem );
 
-  QgsSymbolLayerUtils::wellKnownMarkerToSld( doc, graphicElem, encodeShape( mShape ), mColor, mBorderColor, mOutlineStyle, mOutlineWidth, mSize );
+  double outlineWidth = QgsSymbolLayerUtils::rescaleUom( mOutlineWidth, mOutlineWidthUnit, props );
+  double size = QgsSymbolLayerUtils::rescaleUom( mSize, mSizeUnit, props );
+  QgsSymbolLayerUtils::wellKnownMarkerToSld( doc, graphicElem, encodeShape( mShape ), mColor, mBorderColor, mOutlineStyle, outlineWidth, size );
 
   // <Rotation>
   QString angleFunc;
@@ -1139,7 +1111,8 @@ void QgsSimpleMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement 
   QgsSymbolLayerUtils::createRotationElement( doc, graphicElem, angleFunc );
 
   // <Displacement>
-  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, mOffset );
+  QPointF offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, offset );
 }
 
 QString QgsSimpleMarkerSymbolLayer::ogrFeatureStyle( double mmScaleFactor, double mapUnitScaleFactor ) const
@@ -1263,7 +1236,7 @@ bool QgsSimpleMarkerSymbolLayer::writeDxf( QgsDxfExport& e, double mmMapUnitScal
   //data defined size?
   double size = mSize;
 
-  bool hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  bool hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
 
   //data defined size
   bool ok = true;
@@ -1722,12 +1695,12 @@ void QgsFilledMarkerSymbolLayer::draw( QgsSymbolRenderContext &context, QgsSimpl
 
   if ( !polygon.isEmpty() )
   {
-    mFill->renderPolygon( polygon, /* rings */ nullptr, context.feature(), context.renderContext() );
+    mFill->renderPolygon( polygon, /* rings */ nullptr, context.feature(), context.renderContext(), -1, context.selected() );
   }
   else
   {
     QPolygonF poly = path.toFillPolygon();
-    mFill->renderPolygon( poly, /* rings */ nullptr, context.feature(), context.renderContext() );
+    mFill->renderPolygon( poly, /* rings */ nullptr, context.feature(), context.renderContext(), -1, context.selected() );
   }
 
 
@@ -2079,7 +2052,7 @@ void QgsSvgMarkerSymbolLayer::renderPoint( QPointF point, QgsSymbolRenderContext
 double QgsSvgMarkerSymbolLayer::calculateSize( QgsSymbolRenderContext& context, bool& hasDataDefinedSize ) const
 {
   double scaledSize = mSize;
-  hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
 
   bool ok = true;
   if ( hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE ) )
@@ -2118,7 +2091,7 @@ void QgsSvgMarkerSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderContext
     angle = evaluateDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE, context, mAngle ).toDouble() + mLineAngle;
   }
 
-  bool hasDataDefinedRotation = context.renderHints() & QgsSymbol::DataDefinedRotation || hasDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE );
+  bool hasDataDefinedRotation = context.renderHints() & QgsSymbol::DynamicRotation || hasDataDefinedProperty( QgsSymbolLayer::EXPR_ANGLE );
   if ( hasDataDefinedRotation )
   {
     // For non-point markers, "dataDefinedRotation" means following the
@@ -2223,7 +2196,8 @@ void QgsSvgMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &el
   QDomElement graphicElem = doc.createElement( "se:Graphic" );
   element.appendChild( graphicElem );
 
-  QgsSymbolLayerUtils::externalGraphicToSld( doc, graphicElem, mPath, "image/svg+xml", mColor, mSize );
+  double size = QgsSymbolLayerUtils::rescaleUom( mSize, mSizeUnit, props );
+  QgsSymbolLayerUtils::externalGraphicToSld( doc, graphicElem, mPath, "image/svg+xml", mColor, size );
 
   // <Rotation>
   QString angleFunc;
@@ -2241,7 +2215,8 @@ void QgsSvgMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &el
   QgsSymbolLayerUtils::createRotationElement( doc, graphicElem, angleFunc );
 
   // <Displacement>
-  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, mOffset );
+  QPointF offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, offset );
 }
 
 QgsSymbolLayer* QgsSvgMarkerSymbolLayer::createFromSld( QDomElement &element )
@@ -2292,7 +2267,7 @@ bool QgsSvgMarkerSymbolLayer::writeDxf( QgsDxfExport& e, double mmMapUnitScaleFa
   //size
   double size = mSize;
 
-  bool hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  bool hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
 
   bool ok = true;
   if ( hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE ) )
@@ -2647,7 +2622,7 @@ void QgsFontMarkerSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderContex
     usingDataDefinedRotation = ok;
   }
 
-  hasDataDefinedRotation = context.renderHints() & QgsSymbol::DataDefinedRotation || usingDataDefinedRotation;
+  hasDataDefinedRotation = context.renderHints() & QgsSymbol::DynamicRotation || usingDataDefinedRotation;
   if ( hasDataDefinedRotation )
   {
     // For non-point markers, "dataDefinedRotation" means following the
@@ -2673,7 +2648,7 @@ void QgsFontMarkerSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderContex
 double QgsFontMarkerSymbolLayer::calculateSize( QgsSymbolRenderContext& context )
 {
   double scaledSize = mSize;
-  bool hasDataDefinedSize = context.renderHints() & QgsSymbol::DataDefinedSizeScale || hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
+  bool hasDataDefinedSize = hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE );
 
   bool ok = true;
   if ( hasDataDefinedProperty( QgsSymbolLayer::EXPR_SIZE ) )
@@ -2844,7 +2819,8 @@ void QgsFontMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &e
 
   QString fontPath = QString( "ttf://%1" ).arg( mFontFamily );
   int markIndex = mChr.unicode();
-  QgsSymbolLayerUtils::externalMarkerToSld( doc, graphicElem, fontPath, "ttf", &markIndex, mColor, mSize );
+  double size = QgsSymbolLayerUtils::rescaleUom( mSize, mSizeUnit, props );
+  QgsSymbolLayerUtils::externalMarkerToSld( doc, graphicElem, fontPath, "ttf", &markIndex, mColor, size );
 
   // <Rotation>
   QString angleFunc;
@@ -2861,7 +2837,8 @@ void QgsFontMarkerSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &e
   QgsSymbolLayerUtils::createRotationElement( doc, graphicElem, angleFunc );
 
   // <Displacement>
-  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, mOffset );
+  QPointF offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, offset );
 }
 
 QRectF QgsFontMarkerSymbolLayer::bounds( QPointF point, QgsSymbolRenderContext& context )

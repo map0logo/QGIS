@@ -39,11 +39,12 @@ class QgsSymbol
       ScaleDiameter  //!< Calculate scale by the diameter
     };
 
+    //! Flags controlling behaviour of symbols during rendering
     enum RenderHint
     {
-      DataDefinedSizeScale,
-      DataDefinedRotation
+      DynamicRotation, //!< Rotation of symbol may be changed during rendering and symbol should not be cached
     };
+    typedef QFlags<QgsSymbol::RenderHint> RenderHints;
 
     virtual ~QgsSymbol();
 
@@ -179,8 +180,15 @@ class QgsSymbol
     //! Set alpha transparency 1 for opaque, 0 for invisible
     void setAlpha( qreal alpha );
 
-    void setRenderHints( int hints );
-    int renderHints() const;
+    /** Sets rendering hint flags for the symbol.
+     * @see renderHints()
+     */
+    void setRenderHints( RenderHints hints );
+
+    /** Returns the rendering hint flags for the symbol.
+     * @see setRenderHints()
+     */
+    RenderHints renderHints() const;
 
     /** Sets whether features drawn by the symbol should be clipped to the render context's
      * extent. If this option is enabled then features which are partially outside the extent
@@ -237,25 +245,25 @@ class QgsSymbol
     /**
      * Creates a point in screen coordinates from a QgsPointV2 in map coordinates
      */
-    static void _getPoint( QPointF& pt /Out/, QgsRenderContext& context, const QgsPointV2* point );
+    static QPointF _getPoint( QgsRenderContext& context, const QgsPointV2& point );
 
     /**
-     * Creates a point in screen coordinates from a wkb string in map
+     * Creates a line string in screen coordinates from a QgsCurve in map
      * coordinates
      */
-    static QgsConstWkbPtr _getPoint( QPointF& pt, QgsRenderContext& context, QgsConstWkbPtr& wkb );
+    static QPolygonF _getLineString( QgsRenderContext& context, const QgsCurve& curve, bool clipToExtent = true );
 
     /**
-     * Creates a line string in screen coordinates from a wkb string in map
+     * Creates a polygon ring in screen coordinates from a QgsCurve in map
      * coordinates
      */
-    static QgsConstWkbPtr _getLineString( QPolygonF& pts, QgsRenderContext& context, QgsConstWkbPtr& wkb, bool clipToExtent = true );
+    static QPolygonF _getPolygonRing( QgsRenderContext& context, const QgsCurve& curve, bool clipToExtent );
 
     /**
-     * Creates a polygon in screen coordinates from a wkb string in map
+     * Creates a polygon in screen coordinates from a QgsPolygonV2 in map
      * coordinates
      */
-    static QgsConstWkbPtr _getPolygon( QPolygonF& pts, QList<QPolygonF>& holes, QgsRenderContext& context, QgsConstWkbPtr& wkb, bool clipToExtent = true );
+    static void _getPolygon( QPolygonF& pts, QList<QPolygonF>& holes, QgsRenderContext& context, const QgsPolygonV2& polygon, bool clipToExtent = true );
 
     /**
      * Retrieve a cloned list of all layers that make up this symbol.
@@ -274,11 +282,6 @@ class QgsSymbol
      */
     void renderUsingLayer( QgsSymbolLayer* layer, QgsSymbolRenderContext& context );
 
-    //! check whether a symbol layer type can be used within the symbol
-    //! (marker-marker, line-line, fill-fill/line)
-    //! @deprecated since 2.14, use QgsSymbolLayer::isCompatibleWithSymbol instead
-    bool isSymbolLayerCompatible( SymbolType layerType );
-
     //! Render editing vertex marker at specified point
     //! @note added in QGIS 2.16
     void renderVertexMarker( QPointF pt, QgsRenderContext& context, int currentVertexMarkerType, int currentVertexMarkerSize );
@@ -286,6 +289,9 @@ class QgsSymbol
   private:
     QgsSymbol( const QgsSymbol& );
 };
+
+QFlags<QgsSymbol::RenderHint> operator|(QgsSymbol::RenderHint f1, QFlags<QgsSymbol::RenderHint> f2);
+
 
 ///////////////////////
 
@@ -302,12 +308,12 @@ class QgsSymbolRenderContext
      * @param u
      * @param alpha
      * @param selected set to true if symbol should be drawn in a "selected" state
-     * @param renderHints
+     * @param renderHints flags controlling rendering behaviour
      * @param f
      * @param fields
      * @param mapUnitScale
      */
-    QgsSymbolRenderContext( QgsRenderContext& c, QgsUnitTypes::RenderUnit u, qreal alpha = 1.0, bool selected = false, int renderHints = 0, const QgsFeature* f = 0, const QgsFields& fields = QgsFields(), const QgsMapUnitScale& mapUnitScale = QgsMapUnitScale() );
+    QgsSymbolRenderContext( QgsRenderContext& c, QgsUnitTypes::RenderUnit u, qreal alpha = 1.0, bool selected = false, QgsSymbol::RenderHints renderHints = 0, const QgsFeature* f = 0, const QgsFields& fields = QgsFields(), const QgsMapUnitScale& mapUnitScale = QgsMapUnitScale() );
     ~QgsSymbolRenderContext();
 
     QgsRenderContext& renderContext();
@@ -337,8 +343,15 @@ class QgsSymbolRenderContext
     bool selected() const;
     void setSelected( bool selected );
 
-    int renderHints() const;
-    void setRenderHints( int hints );
+    /** Returns the rendering hint flags for the symbol.
+     * @see setRenderHints()
+     */
+    QgsSymbol::RenderHints renderHints() const;
+
+    /** Sets rendering hint flags for the symbol.
+     * @see renderHints()
+     */
+    void setRenderHints( QgsSymbol::RenderHints hints );
 
     void setFeature( const QgsFeature* f );
     //! Current feature being rendered - may be null

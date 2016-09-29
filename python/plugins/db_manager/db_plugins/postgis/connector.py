@@ -21,6 +21,10 @@ The content of this file is based on
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
+from builtins import range
+
+from functools import cmp_to_key
 
 from qgis.PyQt.QtCore import QRegExp
 from qgis.core import QgsCredentials, QgsDataSourceUri
@@ -62,7 +66,7 @@ class PostGisDBConnector(DBConnector):
         try:
             self.connection = psycopg2.connect(expandedConnInfo.encode('utf-8'))
         except self.connection_error_types() as e:
-            err = unicode(e)
+            err = str(e)
             uri = self.uri()
             conninfo = uri.connectionInfo(False)
 
@@ -85,7 +89,7 @@ class PostGisDBConnector(DBConnector):
                     if i == 2:
                         raise ConnectionError(e)
 
-                    err = unicode(e)
+                    err = str(e)
                 finally:
                     # remove certs (if any) of the expanded connectionInfo
                     expandedUri = QgsDataSourceUri(newExpandedConnInfo)
@@ -135,7 +139,7 @@ class PostGisDBConnector(DBConnector):
         self._checkRasterColumnsTable()
 
     def _connectionInfo(self):
-        return unicode(self.uri().connectionInfo(True))
+        return str(self.uri().connectionInfo(True))
 
     def _checkSpatial(self):
         """ check whether postgis_version is present in catalog """
@@ -331,7 +335,7 @@ class PostGisDBConnector(DBConnector):
                 items.append(item)
         self._close_cursor(c)
 
-        return sorted(items, cmp=lambda x, y: cmp((x[2], x[1]), (y[2], y[1])))
+        return sorted(items, key=cmp_to_key(lambda x, y: (x[1] > y[1]) - (x[1] < y[1])))
 
     def getVectorTables(self, schema=None):
         """ get list of table with a geometry column

@@ -18,6 +18,8 @@ email                : lrssvtml (at) gmail (dot) com
  ***************************************************************************/
 Some portions of code were taken from https://code.google.com/p/pydee/
 """
+from builtins import str
+from builtins import range
 import os
 
 from qgis.PyQt.QtCore import Qt, QTimer, QSettings, QCoreApplication, QSize, QByteArray, QFileInfo, QUrl, QDir
@@ -212,7 +214,7 @@ class PythonConsoleWidget(QWidget):
         self.cutEditorButton = QAction(self)
         self.cutEditorButton.setCheckable(False)
         self.cutEditorButton.setEnabled(True)
-        self.cutEditorButton.setIcon(QgsApplication.getThemeIcon("mActionEditCut.png"))
+        self.cutEditorButton.setIcon(QgsApplication.getThemeIcon("mActionEditCut.svg"))
         self.cutEditorButton.setMenuRole(QAction.PreferencesRole)
         self.cutEditorButton.setIconVisibleInMenu(True)
         self.cutEditorButton.setToolTip(cutEditorBt)
@@ -222,7 +224,7 @@ class PythonConsoleWidget(QWidget):
         self.copyEditorButton = QAction(self)
         self.copyEditorButton.setCheckable(False)
         self.copyEditorButton.setEnabled(True)
-        self.copyEditorButton.setIcon(QgsApplication.getThemeIcon("mActionEditCopy.png"))
+        self.copyEditorButton.setIcon(QgsApplication.getThemeIcon("mActionEditCopy.svg"))
         self.copyEditorButton.setMenuRole(QAction.PreferencesRole)
         self.copyEditorButton.setIconVisibleInMenu(True)
         self.copyEditorButton.setToolTip(copyEditorBt)
@@ -232,7 +234,7 @@ class PythonConsoleWidget(QWidget):
         self.pasteEditorButton = QAction(self)
         self.pasteEditorButton.setCheckable(False)
         self.pasteEditorButton.setEnabled(True)
-        self.pasteEditorButton.setIcon(QgsApplication.getThemeIcon("mActionEditPaste.png"))
+        self.pasteEditorButton.setIcon(QgsApplication.getThemeIcon("mActionEditPaste.svg"))
         self.pasteEditorButton.setMenuRole(QAction.PreferencesRole)
         self.pasteEditorButton.setIconVisibleInMenu(True)
         self.pasteEditorButton.setToolTip(pasteEditorBt)
@@ -410,7 +412,7 @@ class PythonConsoleWidget(QWidget):
         }
 
         self.classMenu = QMenu()
-        for (title, icon), commands in default_command.items():
+        for (title, icon), commands in list(default_command.items()):
             action = self.classMenu.addAction(icon, title)
             action.triggered.connect(partial(self.shell.commandConsole, commands))
 
@@ -623,7 +625,7 @@ class PythonConsoleWidget(QWidget):
     def openScriptFile(self):
         lastDirPath = self.settings.value("pythonConsole/lastDirPath", QDir.homePath())
         openFileTr = QCoreApplication.translate("PythonConsole", "Open File")
-        fileList = QFileDialog.getOpenFileNames(
+        fileList, selected_filter = QFileDialog.getOpenFileNames(
             self, openFileTr, lastDirPath, "Script file (*.py)")
         if fileList:
             for pyFile in fileList:
@@ -663,9 +665,9 @@ class PythonConsoleWidget(QWidget):
             pathFileName = tabWidget.path
             fileNone = False
         saveAsFileTr = QCoreApplication.translate("PythonConsole", "Save File As")
-        filename = QFileDialog.getSaveFileName(self,
-                                               saveAsFileTr,
-                                               pathFileName, "Script file (*.py)")
+        filename, filter = QFileDialog.getSaveFileName(self,
+                                                       saveAsFileTr,
+                                                       pathFileName, "Script file (*.py)")
         if filename:
             try:
                 tabWidget.save(filename)

@@ -25,7 +25,7 @@
 
 // for color ramps - todo add rasterStyle and refactor raster vs. vector ramps
 #include "qgsstyle.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 #include "qgscolordialog.h"
 
 #include <QFileDialog>
@@ -150,11 +150,11 @@ QgsRasterRenderer* QgsSingleBandPseudoColorRendererWidget::renderer()
   qSort( colorRampItems );
   colorRampShader->setColorRampItemList( colorRampItems );
 
-  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->itemData( mColorInterpolationComboBox->currentIndex() ).toInt() );
+  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->currentData().toInt() );
   colorRampShader->setColorRampType( interpolation );
   rasterShader->setRasterShaderFunction( colorRampShader );
 
-  int bandNumber = mBandComboBox->itemData( mBandComboBox->currentIndex() ).toInt();
+  int bandNumber = mBandComboBox->currentData().toInt();
   QgsSingleBandPseudoColorRenderer *renderer = new QgsSingleBandPseudoColorRenderer( mRasterLayer->dataProvider(), bandNumber, rasterShader );
 
   renderer->setClassificationMin( lineEditValue( mMinLineEdit ) );
@@ -175,7 +175,7 @@ void QgsSingleBandPseudoColorRendererWidget::setMapCanvas( QgsMapCanvas* canvas 
  */
 void QgsSingleBandPseudoColorRendererWidget::autoLabel()
 {
-  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->itemData( mColorInterpolationComboBox->currentIndex() ).toInt() );
+  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->currentData().toInt() );
   bool discrete = interpolation == QgsColorRampShader::DISCRETE;
   QString unit = mUnitLineEdit->text();
   QString label;
@@ -221,7 +221,7 @@ void QgsSingleBandPseudoColorRendererWidget::autoLabel()
 /** Extract the unit out of the current labels and set the unit field. */
 void QgsSingleBandPseudoColorRendererWidget::setUnitFromLabels()
 {
-  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->itemData( mColorInterpolationComboBox->currentIndex() ).toInt() );
+  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->currentData().toInt() );
   bool discrete = interpolation == QgsColorRampShader::DISCRETE;
   QStringList allSuffixes;
   QString label;
@@ -323,7 +323,7 @@ void QgsSingleBandPseudoColorRendererWidget::on_mClassifyButton_clicked()
   //QgsRasterBandStats myRasterBandStats = mRasterLayer->dataProvider()->bandStatistics( bandNr );
   int numberOfEntries;
 
-  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->itemData( mColorInterpolationComboBox->currentIndex() ).toInt() );
+  QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->currentData().toInt() );
   bool discrete = interpolation == QgsColorRampShader::DISCRETE;
 
   QList<double> entryValues;
@@ -332,9 +332,9 @@ void QgsSingleBandPseudoColorRendererWidget::on_mClassifyButton_clicked()
   double min = lineEditValue( mMinLineEdit );
   double max = lineEditValue( mMaxLineEdit );
 
-  QScopedPointer< QgsVectorColorRamp > colorRamp( mColorRampComboBox->currentColorRamp() );
+  QScopedPointer< QgsColorRamp > colorRamp( mColorRampComboBox->currentColorRamp() );
 
-  if ( mClassificationModeComboBox->itemData( mClassificationModeComboBox->currentIndex() ).toInt() == Continuous )
+  if ( mClassificationModeComboBox->currentData().toInt() == Continuous )
   {
     if ( colorRamp.data() )
     {
@@ -345,7 +345,7 @@ void QgsSingleBandPseudoColorRendererWidget::on_mClassifyButton_clicked()
         double intervalDiff = max - min;
 
         // remove last class when ColorRamp is gradient and discrete, as they are implemented with an extra stop
-        QgsVectorGradientColorRamp* colorGradientRamp = dynamic_cast<QgsVectorGradientColorRamp*>( colorRamp.data() );
+        QgsGradientColorRamp* colorGradientRamp = dynamic_cast<QgsGradientColorRamp*>( colorRamp.data() );
         if ( colorGradientRamp != NULL && colorGradientRamp->isDiscrete() )
         {
           numberOfEntries--;
@@ -386,7 +386,7 @@ void QgsSingleBandPseudoColorRendererWidget::on_mClassifyButton_clicked()
     if ( numberOfEntries < 2 )
       return; // < 2 classes is not useful, shouldn't happen, but if it happens save it from crashing
 
-    if ( mClassificationModeComboBox->itemData( mClassificationModeComboBox->currentIndex() ).toInt() == Quantile )
+    if ( mClassificationModeComboBox->currentData().toInt() == Quantile )
     { // Quantile
       int bandNr = mBandComboBox->itemData( bandComboIndex ).toInt();
       //QgsRasterHistogram rasterHistogram = mRasterLayer->dataProvider()->histogram( bandNr );
@@ -515,7 +515,7 @@ void QgsSingleBandPseudoColorRendererWidget::on_mColorRampComboBox_currentIndexC
   QSettings settings;
   settings.setValue( "/Raster/defaultPalette", mColorRampComboBox->currentText() );
 
-  QgsVectorColorRamp* ramp = mColorRampComboBox->currentColorRamp();
+  QScopedPointer< QgsColorRamp > ramp( mColorRampComboBox->currentColorRamp() );
   if ( !ramp )
     return;
 
@@ -551,7 +551,7 @@ void QgsSingleBandPseudoColorRendererWidget::on_mLoadFromBandButton_clicked()
     return;
   }
 
-  int bandIndex = mBandComboBox->itemData( mBandComboBox->currentIndex() ).toInt();
+  int bandIndex = mBandComboBox->currentData().toInt();
 
 
   QList<QgsColorRampShader::ColorRampItem> colorRampList = mRasterLayer->dataProvider()->colorTable( bandIndex );
@@ -670,12 +670,12 @@ void QgsSingleBandPseudoColorRendererWidget::on_mExportToFileButton_clicked()
     }
 
     QFile outputFile( fileName );
-    if ( outputFile.open( QFile::WriteOnly ) )
+    if ( outputFile.open( QFile::WriteOnly | QIODevice::Truncate ) )
     {
       QTextStream outputStream( &outputFile );
       outputStream << "# " << tr( "QGIS Generated Color Map Export File" ) << '\n';
       outputStream << "INTERPOLATION:";
-      QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->itemData( mColorInterpolationComboBox->currentIndex() ).toInt() );
+      QgsColorRampShader::ColorRamp_TYPE interpolation = static_cast< QgsColorRampShader::ColorRamp_TYPE >( mColorInterpolationComboBox->currentData().toInt() );
       switch ( interpolation )
       {
         case QgsColorRampShader::INTERPOLATED:

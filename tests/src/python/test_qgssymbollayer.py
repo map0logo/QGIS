@@ -46,6 +46,7 @@ from qgis.core import (QgsCentroidFillSymbolLayer,
                        QgsSimpleFillSymbolLayer,
                        QgsSimpleLineSymbolLayer,
                        QgsSimpleMarkerSymbolLayer,
+                       QgsSimpleMarkerSymbolLayerBase,
                        QgsSVGFillSymbolLayer,
                        QgsSvgMarkerSymbolLayer,
                        QgsSymbolLayer,
@@ -293,7 +294,7 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#ffaa7f'
+        mExpectedValue = '#ffaa7f'
         mValue = mSymbolLayer.borderColor().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -410,17 +411,17 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'star'
-        mValue = mSymbolLayer.subSymbol().symbolLayer(0).name()
+        mExpectedValue = QgsSimpleMarkerSymbolLayerBase.Star
+        mValue = mSymbolLayer.subSymbol().symbolLayer(0).shape()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#55aaff'
+        mExpectedValue = '#55aaff'
         mValue = mSymbolLayer.subSymbol().symbolLayer(0).color().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#00ff00'
+        mExpectedValue = '#00ff00'
         mValue = mSymbolLayer.subSymbol().symbolLayer(0).borderColor().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -453,7 +454,7 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#ff55ff'
+        mExpectedValue = '#ff55ff'
         mValue = mSymbolLayer.color().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -504,17 +505,17 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'triangle'
-        mValue = mSymbolLayer.subSymbol().symbolLayer(0).name()
+        mExpectedValue = QgsSimpleMarkerSymbolLayerBase.Triangle
+        mValue = mSymbolLayer.subSymbol().symbolLayer(0).shape()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#ffaa00'
+        mExpectedValue = '#ffaa00'
         mValue = mSymbolLayer.subSymbol().symbolLayer(0).color().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#ff007f'
+        mExpectedValue = '#ff007f'
         mValue = mSymbolLayer.subSymbol().symbolLayer(0).borderColor().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -598,17 +599,17 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'circle'
-        mValue = mSymbolLayer.subSymbol().symbolLayer(0).name()
+        mExpectedValue = QgsSimpleMarkerSymbolLayerBase.Circle
+        mValue = mSymbolLayer.subSymbol().symbolLayer(0).shape()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#000000'
+        mExpectedValue = '#000000'
         mValue = mSymbolLayer.subSymbol().symbolLayer(0).borderColor().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#ff0000'
+        mExpectedValue = '#ff0000'
         mValue = mSymbolLayer.subSymbol().symbolLayer(0).color().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -641,7 +642,7 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#aa007f'
+        mExpectedValue = '#aa007f'
         mValue = mSymbolLayer.color().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -691,17 +692,17 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'circle'
+        mExpectedValue = 'circle'
         mValue = mSymbolLayer.symbolName()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#ffff7f'
+        mExpectedValue = '#ffff7f'
         mValue = mSymbolLayer.fillColor().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'#aaaaff'
+        mExpectedValue = '#aaaaff'
         mValue = mSymbolLayer.outlineColor().name()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -736,12 +737,12 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'Arial'
+        mExpectedValue = 'Arial'
         mValue = mSymbolLayer.fontFamily()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u"M"
+        mExpectedValue = "M"
         mValue = mSymbolLayer.character()
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
@@ -775,9 +776,9 @@ class TestQgsSymbolLayer(unittest.TestCase):
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 
-        mExpectedValue = u'skull.svg'
+        mExpectedValue = 'skull.svg'
         mValue = os.path.basename(mSymbolLayer.path())
-        print("VALUE", mSymbolLayer.path())
+        print(("VALUE", mSymbolLayer.path()))
         mMessage = 'Expected "%s" got "%s"' % (mExpectedValue, mValue)
         assert mExpectedValue == mValue, mMessage
 

@@ -18,7 +18,7 @@
 #include "qgsvectordataprovider.h"
 #include "qgsfield.h"
 
-#include <QWidget>
+#include <QTableView>
 
 QgsEditorWidgetWrapper::QgsEditorWidgetWrapper( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent )
     : QgsWidgetWrapper( vl, editor, parent )
@@ -109,19 +109,17 @@ void QgsEditorWidgetWrapper::updateConstraint( const QgsFeature &ft )
 {
   bool toEmit( false );
   QString errStr( tr( "predicate is True" ) );
-  QString expression = layer()->editFormConfig()->expression( mFieldIdx );
+  QString expression = layer()->editFormConfig().constraintExpression( mFieldIdx );
   QString description;
   QVariant value = ft.attribute( mFieldIdx );
 
   if ( ! expression.isEmpty() )
   {
-    description = layer()->editFormConfig()->expressionDescription( mFieldIdx );
+    description = layer()->editFormConfig().constraintDescription( mFieldIdx );
 
-    QgsExpressionContext context =
-      QgsExpressionContextUtils::createFeatureBasedContext( ft, ft.fields() );
-    context << QgsExpressionContextUtils::layerScope( layer() );
-
+    QgsExpressionContext context = layer()->createExpressionContext();
     context.setFeature( ft );
+
     QgsExpression expr( expression );
 
     mValidConstraint = expr.evaluate( &context ).toBool();
@@ -138,7 +136,7 @@ void QgsEditorWidgetWrapper::updateConstraint( const QgsFeature &ft )
   else
     mValidConstraint = true;
 
-  if ( layer()->editFormConfig()->notNull( mFieldIdx ) )
+  if ( layer()->editFormConfig().notNull( mFieldIdx ) )
   {
     if ( !expression.isEmpty() )
     {
@@ -170,4 +168,11 @@ void QgsEditorWidgetWrapper::updateConstraint( const QgsFeature &ft )
 bool QgsEditorWidgetWrapper::isValidConstraint() const
 {
   return mValidConstraint;
+}
+
+bool QgsEditorWidgetWrapper::isInTable( const QWidget* parent )
+{
+  if ( !parent ) return false;
+  if ( qobject_cast<const QTableView*>( parent ) ) return true;
+  return isInTable( parent->parentWidget() );
 }

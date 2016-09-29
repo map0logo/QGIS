@@ -46,11 +46,11 @@ class SplitLinesWithLines(GeoAlgorithm):
         self.name, self.i18n_name = self.trAlgorithm('Split lines with lines')
         self.group, self.i18n_group = self.trAlgorithm('Vector overlay tools')
         self.addParameter(ParameterVector(self.INPUT_A,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_LINE]))
+                                          self.tr('Input layer'), [dataobjects.TYPE_VECTOR_LINE]))
         self.addParameter(ParameterVector(self.INPUT_B,
-                                          self.tr('Split layer'), [ParameterVector.VECTOR_TYPE_LINE]))
+                                          self.tr('Split layer'), [dataobjects.TYPE_VECTOR_LINE]))
 
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Splitted')))
+        self.addOutput(OutputVector(self.OUTPUT, self.tr('Splitted'), datatype=[dataobjects.TYPE_VECTOR_LINE]))
 
     def processAlgorithm(self, progress):
         layerA = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT_A))
@@ -80,7 +80,7 @@ class SplitLinesWithLines(GeoAlgorithm):
 
                 for i in lines:
                     request = QgsFeatureRequest().setFilterFid(i)
-                    inFeatB = layerB.getFeatures(request).next()
+                    inFeatB = next(layerB.getFeatures(request))
                     # check if trying to self-intersect
                     if sameLayer:
                         if inFeatA.id() == inFeatB.id():

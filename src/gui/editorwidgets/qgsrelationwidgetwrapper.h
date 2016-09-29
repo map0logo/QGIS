@@ -32,6 +32,48 @@ class GUI_EXPORT QgsRelationWidgetWrapper : public QgsWidgetWrapper
   public:
     explicit QgsRelationWidgetWrapper( QgsVectorLayer* vl, const QgsRelation& relation, QWidget* editor = nullptr, QWidget* parent = nullptr );
 
+    /**
+     * Defines if a title lable should be shown for this widget.
+     * Only has an effect after widget() has been called at least once.
+     *
+     * @note Added in QGIS 2.18
+     */
+    bool showLabel() const;
+
+    /**
+     * Defines if a title lable should be shown for this widget.
+     * Only has an effect after widget() has been called at least once.
+     *
+     * @note Added in QGIS 2.18
+     */
+    void setShowLabel( bool showLabel );
+
+    /**
+     * Determines if the "link feature" button should be shown
+     *
+     * @note Added in QGIS 2.18
+     */
+    bool showLinkButton() const;
+    /**
+     * Determines if the "link feature" button should be shown
+     *
+     * @note Added in QGIS 2.18
+     */
+    void setShowLinkButton( bool showLinkButton );
+
+    /**
+     * Determines if the "unlink feature" button should be shown
+     *
+     * @note Added in QGIS 2.18
+     */
+    bool showUnlinkButton() const;
+    /**
+     * Determines if the "unlink feature" button should be shown
+     *
+     * @note Added in QGIS 2.18
+     */
+    void setShowUnlinkButton( bool showUnlinkButton );
+
   protected:
     QWidget* createWidget( QWidget* parent ) override;
     void initWidget( QWidget* editor ) override;

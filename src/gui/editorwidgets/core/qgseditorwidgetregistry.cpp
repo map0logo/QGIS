@@ -32,6 +32,8 @@
 #include "qgsexternalresourcewidgetfactory.h"
 #include "qgsfilenamewidgetfactory.h"
 #include "qgshiddenwidgetfactory.h"
+#include "qgskeyvaluewidgetfactory.h"
+#include "qgslistwidgetfactory.h"
 #include "qgsphotowidgetfactory.h"
 #include "qgsrangewidgetfactory.h"
 #include "qgsrelationreferencefactory.h"
@@ -54,6 +56,7 @@ QgsEditorWidgetRegistry* QgsEditorWidgetRegistry::instance()
 void QgsEditorWidgetRegistry::initEditors( QgsMapCanvas *mapCanvas, QgsMessageBar *messageBar )
 {
   QgsEditorWidgetRegistry *reg = instance();
+  reg->registerWidget( "TextEdit", new QgsTextEditWidgetFactory( tr( "Text Edit" ) ) );
   reg->registerWidget( "Classification", new QgsClassificationWidgetWrapperFactory( tr( "Classification" ) ) );
   reg->registerWidget( "Range", new QgsRangeWidgetFactory( tr( "Range" ) ) );
   reg->registerWidget( "UniqueValues", new QgsUniqueValueWidgetFactory( tr( "Unique Values" ) ) );
@@ -62,7 +65,6 @@ void QgsEditorWidgetRegistry::initEditors( QgsMapCanvas *mapCanvas, QgsMessageBa
   reg->registerWidget( "Enumeration", new QgsEnumerationWidgetFactory( tr( "Enumeration" ) ) );
   reg->registerWidget( "Hidden", new QgsHiddenWidgetFactory( tr( "Hidden" ) ) );
   reg->registerWidget( "CheckBox", new QgsCheckboxWidgetFactory( tr( "Check Box" ) ) );
-  reg->registerWidget( "TextEdit", new QgsTextEditWidgetFactory( tr( "Text Edit" ) ) );
   reg->registerWidget( "ValueRelation", new QgsValueRelationWidgetFactory( tr( "Value Relation" ) ) );
   reg->registerWidget( "UuidGenerator", new QgsUuidWidgetFactory( tr( "Uuid Generator" ) ) );
   reg->registerWidget( "Photo", new QgsPhotoWidgetFactory( tr( "Photo" ) ) );
@@ -73,6 +75,8 @@ void QgsEditorWidgetRegistry::initEditors( QgsMapCanvas *mapCanvas, QgsMessageBa
   reg->registerWidget( "RelationReference", new QgsRelationReferenceFactory( tr( "Relation Reference" ), mapCanvas, messageBar ) );
   reg->registerWidget( "DateTime", new QgsDateTimeEditFactory( tr( "Date/Time" ) ) );
   reg->registerWidget( "ExternalResource", new QgsExternalResourceWidgetFactory( tr( "External Resource" ) ) );
+  reg->registerWidget( "KeyValue", new QgsKeyValueWidgetFactory( tr( "Key/Value" ) ) );
+  reg->registerWidget( "List", new QgsListWidgetFactory( tr( "List" ) ) );
 }
 
 QgsEditorWidgetRegistry::QgsEditorWidgetRegistry()
@@ -87,6 +91,23 @@ QgsEditorWidgetRegistry::QgsEditorWidgetRegistry()
 QgsEditorWidgetRegistry::~QgsEditorWidgetRegistry()
 {
   qDeleteAll( mWidgetFactories );
+}
+
+QgsEditorWidgetSetup QgsEditorWidgetRegistry::findBest( const QgsVectorLayer* vl, const QString& fieldName ) const
+{
+  const QString fromConfig = vl->editFormConfig().widgetType( fieldName );
+  if ( !fromConfig.isNull() )
+  {
+    return QgsEditorWidgetSetup( fromConfig, vl->editFormConfig().widgetConfig( fieldName ) );
+  }
+  return mAutoConf.editorWidgetSetup( vl, fieldName );
+}
+
+QgsEditorWidgetWrapper* QgsEditorWidgetRegistry::create( QgsVectorLayer* vl, int fieldIdx, QWidget* editor, QWidget* parent, const QgsAttributeEditorContext &context )
+{
+  const QString fieldName = vl->fields().field( fieldIdx ).name();
+  const QgsEditorWidgetSetup setup = findBest( vl, fieldName );
+  return create( setup.type(), vl, fieldIdx, setup.config(), editor, parent, context );
 }
 
 QgsEditorWidgetWrapper* QgsEditorWidgetRegistry::create( const QString& widgetId, QgsVectorLayer* vl, int fieldIdx, const QgsEditorWidgetConfig& config, QWidget* editor, QWidget* parent, const QgsAttributeEditorContext &context )
@@ -214,6 +235,8 @@ void QgsEditorWidgetRegistry::readMapLayer( QgsMapLayer* mapLayer, const QDomEle
 
   QDomNodeList editTypeNodes = layerElem.namedItem( "edittypes" ).childNodes();
 
+  QgsEditFormConfig formConfig = vectorLayer->editFormConfig();
+
   for ( int i = 0; i < editTypeNodes.size(); i++ )
   {
     QDomNode editTypeNode = editTypeNodes.at( i );
@@ -230,7 +253,7 @@ void QgsEditorWidgetRegistry::readMapLayer( QgsMapLayer* mapLayer, const QDomEle
 
     if ( mWidgetFactories.contains( ewv2Type ) )
     {
-      vectorLayer->editFormConfig()->setWidgetType( idx, ewv2Type );
+      formConfig.setWidgetType( name, ewv2Type );
       QDomElement ewv2CfgElem = editTypeElement.namedItem( "widgetv2config" ).toElement();
 
       if ( !ewv2CfgElem.isNull() )
@@ -238,19 +261,21 @@ void QgsEditorWidgetRegistry::readMapLayer( QgsMapLayer* mapLayer, const QDomEle
         cfg = mWidgetFactories[ewv2Type]->readEditorConfig( ewv2CfgElem, vectorLayer, idx );
       }
 
-      vectorLayer->editFormConfig()->setReadOnly( idx, ewv2CfgElem.attribute( "fieldEditable", "1" ) != "1" );
-      vectorLayer->editFormConfig()->setLabelOnTop( idx, ewv2CfgElem.attribute( "labelOnTop", "0" ) == "1" );
-      vectorLayer->editFormConfig()->setNotNull( idx, ewv2CfgElem.attribute( "notNull", "0" ) == "1" );
-      vectorLayer->editFormConfig()->setExpression( idx, ewv2CfgElem.attribute( "constraint", QString() ) );
-      vectorLayer->editFormConfig()->setExpressionDescription( idx, ewv2CfgElem.attribute( "constraintDescription", QString() ) );
+      formConfig.setReadOnly( idx, ewv2CfgElem.attribute( "fieldEditable", "1" ) != "1" );
+      formConfig.setLabelOnTop( idx, ewv2CfgElem.attribute( "labelOnTop", "0" ) == "1" );
+      formConfig.setNotNull( idx, ewv2CfgElem.attribute( "notNull", "0" ) == "1" );
+      formConfig.setConstraintExpression( idx, ewv2CfgElem.attribute( "constraint", QString() ) );
+      formConfig.setContraintDescription( idx, ewv2CfgElem.attribute( "constraintDescription", QString() ) );
 
-      vectorLayer->editFormConfig()->setWidgetConfig( idx, cfg );
+      formConfig.setWidgetConfig( name, cfg );
     }
     else
     {
       QgsMessageLog::logMessage( tr( "Unknown attribute editor widget '%1'" ).arg( ewv2Type ) );
     }
   }
+
+  vectorLayer->setEditFormConfig( formConfig );
 }
 
 void QgsEditorWidgetRegistry::writeMapLayer( QgsMapLayer* mapLayer, QDomElement& layerElem, QDomDocument& doc ) const
@@ -271,8 +296,13 @@ void QgsEditorWidgetRegistry::writeMapLayer( QgsMapLayer* mapLayer, QDomElement&
   QgsFields fields = vectorLayer->fields();
   for ( int idx = 0; idx < fields.count(); ++idx )
   {
-    QgsField field = fields.at( idx );
-    const QString& widgetType = vectorLayer->editFormConfig()->widgetType( idx );
+    const QgsField field = fields.at( idx );
+    const QString& widgetType = vectorLayer->editFormConfig().widgetType( field.name() );
+    if ( widgetType.isNull() )
+    {
+      // Don't save widget config if it is not manually edited
+      continue;
+    }
     if ( !mWidgetFactories.contains( widgetType ) )
     {
       QgsMessageLog::logMessage( tr( "Could not save unknown editor widget type '%1'." ).arg( widgetType ) );
@@ -287,13 +317,13 @@ void QgsEditorWidgetRegistry::writeMapLayer( QgsMapLayer* mapLayer, QDomElement&
     if ( mWidgetFactories.contains( widgetType ) )
     {
       QDomElement ewv2CfgElem = doc.createElement( "widgetv2config" );
-      ewv2CfgElem.setAttribute( "fieldEditable", !vectorLayer->editFormConfig()->readOnly( idx ) );
-      ewv2CfgElem.setAttribute( "labelOnTop", vectorLayer->editFormConfig()->labelOnTop( idx ) );
-      ewv2CfgElem.setAttribute( "notNull", vectorLayer->editFormConfig()->notNull( idx ) );
-      ewv2CfgElem.setAttribute( "constraint", vectorLayer->editFormConfig()->expression( idx ) );
-      ewv2CfgElem.setAttribute( "constraintDescription", vectorLayer->editFormConfig()->expressionDescription( idx ) );
+      ewv2CfgElem.setAttribute( "fieldEditable", !vectorLayer->editFormConfig().readOnly( idx ) );
+      ewv2CfgElem.setAttribute( "labelOnTop", vectorLayer->editFormConfig().labelOnTop( idx ) );
+      ewv2CfgElem.setAttribute( "notNull", vectorLayer->editFormConfig().notNull( idx ) );
+      ewv2CfgElem.setAttribute( "constraint", vectorLayer->editFormConfig().constraintExpression( idx ) );
+      ewv2CfgElem.setAttribute( "constraintDescription", vectorLayer->editFormConfig().constraintDescription( idx ) );
 
-      mWidgetFactories[widgetType]->writeConfig( vectorLayer->editFormConfig()->widgetConfig( idx ), ewv2CfgElem, doc, vectorLayer, idx );
+      mWidgetFactories[widgetType]->writeConfig( vectorLayer->editFormConfig().widgetConfig( field.name() ), ewv2CfgElem, doc, vectorLayer, idx );
 
       editTypeElement.appendChild( ewv2CfgElem );
     }

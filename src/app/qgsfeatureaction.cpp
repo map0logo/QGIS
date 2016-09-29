@@ -145,6 +145,8 @@ bool QgsFeatureAction::addFeature( const QgsAttributeMap& defaultAttributes, boo
   bool reuseLastValues = settings.value( "/qgis/digitizing/reuseLastValues", false ).toBool();
   QgsDebugMsg( QString( "reuseLastValues: %1" ).arg( reuseLastValues ) );
 
+  QgsExpressionContext context = mLayer->createExpressionContext();
+
   // add the fields to the QgsFeature
   const QgsFields& fields = mLayer->fields();
   mFeature->initAttributes( fields.count() );
@@ -155,6 +157,11 @@ bool QgsFeatureAction::addFeature( const QgsAttributeMap& defaultAttributes, boo
     if ( defaultAttributes.contains( idx ) )
     {
       v = defaultAttributes.value( idx );
+    }
+    else if ( !mLayer->defaultValueExpression( idx ).isEmpty() )
+    {
+      // client side default expression set - use this in preference to reusing last value
+      v = mLayer->defaultValue( idx, *mFeature, &context );
     }
     else if ( reuseLastValues && sLastUsedValues.contains( mLayer ) && sLastUsedValues[ mLayer ].contains( idx ) && !pkAttrList.contains( idx ) )
     {
@@ -173,7 +180,7 @@ bool QgsFeatureAction::addFeature( const QgsAttributeMap& defaultAttributes, boo
   bool isDisabledAttributeValuesDlg = ( fields.count() == 0 ) || settings.value( "/qgis/digitizing/disable_enter_attribute_values_dialog", false ).toBool();
 
   // override application-wide setting with any layer setting
-  switch ( mLayer->editFormConfig()->suppress() )
+  switch ( mLayer->editFormConfig().suppress() )
   {
     case QgsEditFormConfig::SuppressOn:
       isDisabledAttributeValuesDlg = true;

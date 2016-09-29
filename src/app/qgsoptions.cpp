@@ -507,7 +507,7 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl )
   mDecimalPlacesSpinBox->setValue( decimalPlaces );
 
   // set if base unit of measure tool should be changed
-  bool baseUnit = mSettings->value( "qgis/measure/keepbaseunit", false ).toBool();
+  bool baseUnit = mSettings->value( "qgis/measure/keepbaseunit", true ).toBool();
   if ( baseUnit )
   {
     mKeepBaseUnitCheckBox->setChecked( true );
@@ -565,7 +565,7 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl )
   //Changed to default to true as of QGIS 1.7
   chkAntiAliasing->setChecked( mSettings->value( "/qgis/enable_anti_aliasing", true ).toBool() );
   chkUseRenderCaching->setChecked( mSettings->value( "/qgis/enable_render_caching", true ).toBool() );
-  chkParallelRendering->setChecked( mSettings->value( "/qgis/parallel_rendering", false ).toBool() );
+  chkParallelRendering->setChecked( mSettings->value( "/qgis/parallel_rendering", true ).toBool() );
   spinMapUpdateInterval->setValue( mSettings->value( "/qgis/map_update_interval", 250 ).toInt() );
   chkMaxThreads->setChecked( QgsApplication::maxThreads() != -1 );
   spinMaxThreads->setEnabled( chkMaxThreads->isChecked() );
@@ -745,6 +745,8 @@ QgsOptions::QgsOptions( QWidget *parent, Qt::WindowFlags fl )
   connect( mButtonCopyColors, SIGNAL( clicked() ), mTreeCustomColors, SLOT( copyColors() ) );
   connect( mButtonRemoveColor, SIGNAL( clicked() ), mTreeCustomColors, SLOT( removeSelection() ) );
   connect( mButtonPasteColors, SIGNAL( clicked() ), mTreeCustomColors, SLOT( pasteColors() ) );
+  connect( mButtonImportColors, SIGNAL( clicked( bool ) ), mTreeCustomColors, SLOT( showImportColorsDialog() ) );
+  connect( mButtonExportColors, SIGNAL( clicked( bool ) ), mTreeCustomColors, SLOT( showExportColorsDialog() ) );
 
   //find custom color scheme from registry
   QList<QgsCustomColorScheme *> customSchemes;
@@ -1058,7 +1060,7 @@ void QgsOptions::saveOptions()
     if ( mCustomVariablesTable->item( i, 1 )->text().isEmpty() )
       continue;
     QComboBox* varApplyCmbBx = qobject_cast<QComboBox*>( mCustomVariablesTable->cellWidget( i, 0 ) );
-    QString customVar = varApplyCmbBx->itemData( varApplyCmbBx->currentIndex() ).toString();
+    QString customVar = varApplyCmbBx->currentData().toString();
     customVar += '|';
     customVar += mCustomVariablesTable->item( i, 1 )->text();
     customVar += '=';
@@ -1171,14 +1173,14 @@ void QgsOptions::saveOptions()
   mSettings->setValue( QString( "/qgis/showTips%1" ).arg( Qgis::QGIS_VERSION_INT / 100 ), cbxShowTips->isChecked() );
   mSettings->setValue( "/qgis/checkVersion", cbxCheckVersion->isChecked() );
   mSettings->setValue( "/qgis/dockAttributeTable", cbxAttributeTableDocked->isChecked() );
-  mSettings->setValue( "/qgis/attributeTableBehaviour", cmbAttrTableBehaviour->itemData( cmbAttrTableBehaviour->currentIndex() ) );
-  mSettings->setValue( "/qgis/attributeTableView", mAttrTableViewComboBox->itemData( mAttrTableViewComboBox->currentIndex() ) );
+  mSettings->setValue( "/qgis/attributeTableBehaviour", cmbAttrTableBehaviour->currentData() );
+  mSettings->setValue( "/qgis/attributeTableView", mAttrTableViewComboBox->currentData() );
   mSettings->setValue( "/qgis/attributeTableRowCache", spinBoxAttrTableRowCache->value() );
   mSettings->setValue( "/qgis/promptForRasterSublayers", cmbPromptRasterSublayers->currentIndex() );
   mSettings->setValue( "/qgis/scanItemsInBrowser2",
-                       cmbScanItemsInBrowser->itemData( cmbScanItemsInBrowser->currentIndex() ).toString() );
+                       cmbScanItemsInBrowser->currentData().toString() );
   mSettings->setValue( "/qgis/scanZipInBrowser2",
-                       cmbScanZipInBrowser->itemData( cmbScanZipInBrowser->currentIndex() ).toString() );
+                       cmbScanZipInBrowser->currentData().toString() );
   mSettings->setValue( "/qgis/ignoreShapeEncoding", cbxIgnoreShapeEncoding->isChecked() );
   mSettings->setValue( "/qgis/dockSnapping", cbxSnappingOptionsDocked->isChecked() );
   mSettings->setValue( "/qgis/addPostgisDC", cbxAddPostgisDC->isChecked() );
@@ -1187,7 +1189,7 @@ void QgsOptions::saveOptions()
   mSettings->setValue( "/qgis/defaultLegendGraphicResolution", mLegendGraphicResolutionSpinBox->value() );
   bool createRasterLegendIcons = mSettings->value( "/qgis/createRasterLegendIcons", false ).toBool();
   mSettings->setValue( "/qgis/createRasterLegendIcons", cbxCreateRasterLegendIcons->isChecked() );
-  mSettings->setValue( "/qgis/copyFeatureFormat", mComboCopyFeatureFormat->itemData( mComboCopyFeatureFormat->currentIndex() ).toInt() );
+  mSettings->setValue( "/qgis/copyFeatureFormat", mComboCopyFeatureFormat->currentData().toInt() );
 
   mSettings->setValue( "/qgis/new_layers_visible", chkAddedVisibility->isChecked() );
   mSettings->setValue( "/qgis/enable_anti_aliasing", chkAntiAliasing->isChecked() );
@@ -1210,7 +1212,7 @@ void QgsOptions::saveOptions()
     if ( mSimplifyDrawingSpinBox->value() > 1 ) simplifyHints |= QgsVectorSimplifyMethod::AntialiasingSimplification;
   }
   mSettings->setValue( "/qgis/simplifyDrawingHints", ( int ) simplifyHints );
-  mSettings->setValue( "/qgis/simplifyAlgorithm", mSimplifyAlgorithmComboBox->itemData( mSimplifyAlgorithmComboBox->currentIndex() ).toInt() );
+  mSettings->setValue( "/qgis/simplifyAlgorithm", mSimplifyAlgorithmComboBox->currentData().toInt() );
   mSettings->setValue( "/qgis/simplifyDrawingTol", mSimplifyDrawingSpinBox->value() );
   mSettings->setValue( "/qgis/simplifyLocal", !mSimplifyDrawingAtProvider->isChecked() );
   mSettings->setValue( "/qgis/simplifyMaxScale", 1.0 / mSimplifyMaximumScaleComboBox->scale() );
@@ -1219,7 +1221,7 @@ void QgsOptions::saveOptions()
   mSettings->setValue( "/qgis/magnifier_factor_default", doubleSpinBoxMagnifierDefault->value() / 100 );
 
   //curve segmentation
-  int segmentationType = mToleranceTypeComboBox->itemData( mToleranceTypeComboBox->currentIndex() ).toInt();
+  int segmentationType = mToleranceTypeComboBox->currentData().toInt();
   mSettings->setValue( "/qgis/segmentationToleranceType", segmentationType );
   double segmentationTolerance = mSegmentationToleranceSpinBox->value();
   if ( segmentationType == 0 )
@@ -1262,7 +1264,7 @@ void QgsOptions::saveOptions()
   saveContrastEnhancement( cboxContrastEnhancementAlgorithmMultiBandSingleByte, "multiBandSingleByte" );
   saveContrastEnhancement( cboxContrastEnhancementAlgorithmMultiBandMultiByte, "multiBandMultiByte" );
 
-  QString contrastEnhancementLimits = cboxContrastEnhancementLimits->itemData( cboxContrastEnhancementLimits->currentIndex() ).toString();
+  QString contrastEnhancementLimits = cboxContrastEnhancementLimits->currentData().toString();
   mSettings->setValue( "/Raster/defaultContrastEnhancementLimits", contrastEnhancementLimits );
 
   mSettings->setValue( "/Raster/defaultStandardDeviation", spnThreeBandStdDev->value() );
@@ -1299,13 +1301,13 @@ void QgsOptions::saveOptions()
 
   //measurement settings
 
-  QgsUnitTypes::DistanceUnit distanceUnit = static_cast< QgsUnitTypes::DistanceUnit >( mDistanceUnitsComboBox->itemData( mDistanceUnitsComboBox->currentIndex() ).toInt() );
+  QgsUnitTypes::DistanceUnit distanceUnit = static_cast< QgsUnitTypes::DistanceUnit >( mDistanceUnitsComboBox->currentData().toInt() );
   mSettings->setValue( "/qgis/measure/displayunits", QgsUnitTypes::encodeUnit( distanceUnit ) );
 
-  QgsUnitTypes::AreaUnit areaUnit = static_cast< QgsUnitTypes::AreaUnit >( mAreaUnitsComboBox->itemData( mAreaUnitsComboBox->currentIndex() ).toInt() );
+  QgsUnitTypes::AreaUnit areaUnit = static_cast< QgsUnitTypes::AreaUnit >( mAreaUnitsComboBox->currentData().toInt() );
   mSettings->setValue( "/qgis/measure/areaunits", QgsUnitTypes::encodeUnit( areaUnit ) );
 
-  QgsUnitTypes::AngleUnit angleUnit = static_cast< QgsUnitTypes::AngleUnit >( mAngleUnitsComboBox->itemData( mAngleUnitsComboBox->currentIndex() ).toInt() );
+  QgsUnitTypes::AngleUnit angleUnit = static_cast< QgsUnitTypes::AngleUnit >( mAngleUnitsComboBox->currentData().toInt() );
   mSettings->setValue( "/qgis/measure/angleunits", QgsUnitTypes::encodeUnit( angleUnit ) );
 
   int decimalPlaces = mDecimalPlacesSpinBox->value();
@@ -1352,7 +1354,7 @@ void QgsOptions::saveOptions()
   settings.setValue( "/qgis/digitizing/line_ghost", mLineGhostCheckBox->isChecked() );
 
   //default snap mode
-  QString defaultSnapModeString = mDefaultSnapModeComboBox->itemData( mDefaultSnapModeComboBox->currentIndex() ).toString();
+  QString defaultSnapModeString = mDefaultSnapModeComboBox->currentData().toString();
   mSettings->setValue( "/qgis/digitizing/default_snap_mode", defaultSnapModeString );
   mSettings->setValue( "/qgis/digitizing/default_snapping_tolerance", mDefaultSnappingToleranceSpinBox->value() );
   mSettings->setValue( "/qgis/digitizing/search_radius_vertex_edit", mSearchRadiusVertexEditSpinBox->value() );
@@ -1382,7 +1384,7 @@ void QgsOptions::saveOptions()
   mSettings->setValue( "/qgis/digitizing/disable_enter_attribute_values_dialog", chkDisableAttributeValuesDlg->isChecked() );
   mSettings->setValue( "/qgis/digitizing/validate_geometries", mValidateGeometries->currentIndex() );
 
-  mSettings->setValue( "/qgis/digitizing/offset_join_style", mOffsetJoinStyleComboBox->itemData( mOffsetJoinStyleComboBox->currentIndex() ).toInt() );
+  mSettings->setValue( "/qgis/digitizing/offset_join_style", mOffsetJoinStyleComboBox->currentData().toInt() );
   mSettings->setValue( "/qgis/digitizing/offset_quad_seg", mOffsetQuadSegSpinBox->value() );
   mSettings->setValue( "/qgis/digitizing/offset_miter_limit", mCurveOffsetMiterLimitComboBox->value() );
 
@@ -1443,7 +1445,7 @@ void QgsOptions::saveOptions()
   //
   // Locale settings
   //
-  mSettings->setValue( "locale/userLocale", cboLocale->itemData( cboLocale->currentIndex() ).toString() );
+  mSettings->setValue( "locale/userLocale", cboLocale->currentData().toString() );
   mSettings->setValue( "locale/overrideFlag", grpLocale->isChecked() );
 
   // Gdal skip driver list
@@ -2078,7 +2080,7 @@ void QgsOptions::initContrastEnhancement( QComboBox *cbox, const QString& name, 
 void QgsOptions::saveContrastEnhancement( QComboBox *cbox, const QString& name )
 {
   QSettings settings;
-  QString value = cbox->itemData( cbox->currentIndex() ).toString();
+  QString value = cbox->currentData().toString();
   mSettings->setValue( "/Raster/defaultContrastEnhancementAlgorithm/" + name, value );
 }
 
@@ -2158,64 +2160,6 @@ void QgsOptions::on_mButtonAddColor_clicked()
   activateWindow();
 
   mTreeCustomColors->addColor( newColor, QgsSymbolLayerUtils::colorToName( newColor ) );
-}
-
-void QgsOptions::on_mButtonImportColors_clicked()
-{
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
-  QString filePath = QFileDialog::getOpenFileName( this, tr( "Select palette file" ), lastDir, "GPL (*.gpl);;All files (*.*)" );
-  activateWindow();
-  if ( filePath.isEmpty() )
-  {
-    return;
-  }
-
-  //check if file exists
-  QFileInfo fileInfo( filePath );
-  if ( !fileInfo.exists() || !fileInfo.isReadable() )
-  {
-    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, file does not exist or is not readable" ) );
-    return;
-  }
-
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-  QFile file( filePath );
-  bool importOk = mTreeCustomColors->importColorsFromGpl( file );
-  if ( !importOk )
-  {
-    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, no colors found in palette file" ) );
-    return;
-  }
-}
-
-void QgsOptions::on_mButtonExportColors_clicked()
-{
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
-  QString fileName = QFileDialog::getSaveFileName( this, tr( "Palette file" ), lastDir, "GPL (*.gpl)" );
-  activateWindow();
-  if ( fileName.isEmpty() )
-  {
-    return;
-  }
-
-  // ensure filename contains extension
-  if ( !fileName.endsWith( ".gpl", Qt::CaseInsensitive ) )
-  {
-    fileName += ".gpl";
-  }
-
-  QFileInfo fileInfo( fileName );
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-
-  QFile file( fileName );
-  bool exportOk = mTreeCustomColors->exportColorsToGpl( file );
-  if ( !exportOk )
-  {
-    QMessageBox::critical( nullptr, tr( "Error exporting" ), tr( "Error writing palette file" ) );
-    return;
-  }
 }
 
 QListWidgetItem* QgsOptions::addScaleToScaleList( const QString &newScale )

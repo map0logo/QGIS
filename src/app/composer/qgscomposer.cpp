@@ -51,9 +51,7 @@
 #include "qgscomposerscalebarwidget.h"
 #include "qgscomposershape.h"
 #include "qgscomposershapewidget.h"
-#include "qgscomposerattributetable.h"
 #include "qgscomposerattributetablev2.h"
-#include "qgscomposertablewidget.h"
 #include "qgsexception.h"
 #include "qgslogger.h"
 #include "qgsproject.h"
@@ -387,7 +385,7 @@ QgsComposer::QgsComposer( QgisApp *qgis, const QString& title )
   layoutMenu->addAction( mActionAddNewLegend );
   layoutMenu->addAction( mActionAddImage );
   QMenu *shapeMenu = layoutMenu->addMenu( "Add Shape" );
-  shapeMenu->setIcon( QgsApplication::getThemeIcon( "/mActionAddBasicShape.png" ) );
+  shapeMenu->setIcon( QgsApplication::getThemeIcon( "/mActionAddBasicShape.svg" ) );
   shapeMenu->addAction( mActionAddRectangle );
   shapeMenu->addAction( mActionAddTriangle );
   shapeMenu->addAction( mActionAddEllipse );
@@ -800,7 +798,6 @@ void QgsComposer::connectCompositionSlots()
   connect( mComposition, SIGNAL( composerLegendAdded( QgsComposerLegend* ) ), this, SLOT( addComposerLegend( QgsComposerLegend* ) ) );
   connect( mComposition, SIGNAL( composerPictureAdded( QgsComposerPicture* ) ), this, SLOT( addComposerPicture( QgsComposerPicture* ) ) );
   connect( mComposition, SIGNAL( composerShapeAdded( QgsComposerShape* ) ), this, SLOT( addComposerShape( QgsComposerShape* ) ) );
-  connect( mComposition, SIGNAL( composerTableAdded( QgsComposerAttributeTable* ) ), this, SLOT( addComposerTable( QgsComposerAttributeTable* ) ) );
   connect( mComposition, SIGNAL( composerTableFrameAdded( QgsComposerAttributeTableV2*, QgsComposerFrame* ) ), this, SLOT( addComposerTableV2( QgsComposerAttributeTableV2*, QgsComposerFrame* ) ) );
   connect( mComposition, SIGNAL( itemRemoved( QgsComposerItem* ) ), this, SLOT( deleteItem( QgsComposerItem* ) ) );
   connect( mComposition, SIGNAL( paperSizeChanged() ), mHorizontalRuler, SLOT( update() ) );
@@ -2877,7 +2874,7 @@ void QgsComposer::exportCompositionAsSVG( QgsComposer::OutputMode mode )
         QFileInfo fi( outputFileName );
         QString currentFileName = i == 0 ? outputFileName : fi.absolutePath() + '/' + fi.baseName() + '_' + QString::number( i + 1 ) + '.' + fi.suffix();
         QFile out( currentFileName );
-        bool openOk = out.open( QIODevice::WriteOnly | QIODevice::Text );
+        bool openOk = out.open( QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate );
         if ( !openOk )
         {
           QMessageBox::warning( this, tr( "SVG export error" ),
@@ -3099,7 +3096,7 @@ void QgsComposer::on_mActionSaveAsTemplate_triggered()
   settings.setValue( "UI/lastComposerTemplateDir", saveFileInfo.absolutePath() );
 
   QFile templateFile( saveFileName );
-  if ( !templateFile.open( QIODevice::WriteOnly ) )
+  if ( !templateFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
   {
     return;
   }
@@ -3479,15 +3476,6 @@ void QgsComposer::writeXml( QDomNode& parentNode, QDomDocument& doc )
   }
   mMapsToRestore.clear();
 
-  //store if composer is open or closed
-  if ( isVisible() )
-  {
-    composerElem.setAttribute( "visible", 1 );
-  }
-  else
-  {
-    composerElem.setAttribute( "visible", 0 );
-  }
   parentNode.appendChild( composerElem );
 
   //store composition
@@ -3761,17 +3749,6 @@ void QgsComposer::addComposerShape( QgsComposerShape* shape )
   }
   QgsComposerShapeWidget* sWidget = new QgsComposerShapeWidget( shape );
   mItemWidgetMap.insert( shape, sWidget );
-}
-
-void QgsComposer::addComposerTable( QgsComposerAttributeTable* table )
-{
-  if ( !table )
-  {
-    return;
-  }
-
-  QgsComposerTableWidget* tWidget = new QgsComposerTableWidget( table );
-  mItemWidgetMap.insert( table, tWidget );
 }
 
 void QgsComposer::addComposerTableV2( QgsComposerAttributeTableV2 *table, QgsComposerFrame* frame )
@@ -4077,7 +4054,7 @@ void QgsComposer::createComposerView()
 void QgsComposer::writeWorldFile( const QString& worldFileName, double a, double b, double c, double d, double e, double f ) const
 {
   QFile worldFile( worldFileName );
-  if ( !worldFile.open( QIODevice::WriteOnly | QIODevice::Text ) )
+  if ( !worldFile.open( QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate ) )
   {
     return;
   }

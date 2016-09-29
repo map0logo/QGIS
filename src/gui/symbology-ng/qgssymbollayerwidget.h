@@ -29,7 +29,7 @@ class QgsMapCanvas;
 /** \ingroup gui
  * \class QgsSymbolLayerWidget
  */
-class GUI_EXPORT QgsSymbolLayerWidget : public QWidget, private QgsExpressionContextGenerator
+class GUI_EXPORT QgsSymbolLayerWidget : public QWidget, protected QgsExpressionContextGenerator
 {
     Q_OBJECT
 
@@ -96,13 +96,6 @@ class GUI_EXPORT QgsSymbolLayerWidget : public QWidget, private QgsExpressionCon
     const QgsVectorLayer* mVectorLayer;
 
     QgsMapCanvas* mMapCanvas;
-
-    /** Get label for data defined entry.
-     * Implemented only for 'size' of marker symbols
-     * @note added in 2.1
-     * @deprecated no longer used
-     */
-    Q_DECL_DEPRECATED virtual QString dataDefinedPropertyLabel( const QString &entryName );
 
   signals:
     /**
@@ -198,8 +191,7 @@ class GUI_EXPORT QgsSimpleMarkerSymbolLayerWidget : public QgsSymbolLayerWidget,
     virtual QgsSymbolLayer* symbolLayer() override;
 
   public slots:
-    //TODO QGIS 3.0 - rename to setShape
-    void setName();
+
     void setColorBorder( const QColor& color );
     void setColorFill( const QColor& color );
     void setSize();
@@ -217,7 +209,7 @@ class GUI_EXPORT QgsSimpleMarkerSymbolLayerWidget : public QgsSymbolLayerWidget,
     QgsSimpleMarkerSymbolLayer* mLayer;
 
   private slots:
-
+    void setShape();
     void updateAssistantSymbol();
     void penJoinStyleChanged();
 
@@ -797,7 +789,7 @@ class GUI_EXPORT QgsGeometryGeneratorSymbolLayerWidget : public QgsSymbolLayerWi
     QgsGeometryGeneratorSymbolLayer* mLayer;
 
   private slots:
-    void updateExpression();
+    void updateExpression( const QString& string );
     void updateSymbolType();
 };
 

@@ -65,7 +65,7 @@
 #include <qwt_plot_curve.h>
 #include <qwt_symbol.h>
 #include <qwt_legend.h>
-#include "qgsvectorcolorramp.h" // for random colors
+#include "qgscolorramp.h" // for random colors
 
 QgsIdentifyResultsWebView::QgsIdentifyResultsWebView( QWidget *parent ) : QgsWebView( parent )
 {
@@ -75,6 +75,7 @@ QgsIdentifyResultsWebView::QgsIdentifyResultsWebView( QWidget *parent ) : QgsWeb
   page()->setLinkDelegationPolicy( QWebPage::DontDelegateLinks );
   settings()->setAttribute( QWebSettings::LocalContentCanAccessRemoteUrls, true );
   settings()->setAttribute( QWebSettings::JavascriptCanOpenWindows, true );
+  settings()->setAttribute( QWebSettings::PluginsEnabled, true );
 #ifdef QGISDEBUG
   settings()->setAttribute( QWebSettings::DeveloperExtrasEnabled, true );
 #endif
@@ -115,6 +116,7 @@ QgsWebView *QgsIdentifyResultsWebView::createWindow( QWebPage::WebWindowType typ
   wv->page()->setNetworkAccessManager( QgsNetworkAccessManager::instance() );
   wv->settings()->setAttribute( QWebSettings::LocalContentCanAccessRemoteUrls, true );
   wv->settings()->setAttribute( QWebSettings::JavascriptCanOpenWindows, true );
+  wv->settings()->setAttribute( QWebSettings::PluginsEnabled, true );
 #ifdef QGISDEBUG
   wv->settings()->setAttribute( QWebSettings::DeveloperExtrasEnabled, true );
 #endif
@@ -479,7 +481,8 @@ void QgsIdentifyResultsDialog::addFeature( QgsVectorLayer *vlayer, const QgsFeat
     if ( i >= fields.count() )
       break;
 
-    if ( vlayer->editFormConfig()->widgetType( i ) == "Hidden" )
+    const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( vlayer, fields[i].name() );
+    if ( setup.type() == "Hidden" )
     {
       continue;
     }
@@ -493,13 +496,15 @@ void QgsIdentifyResultsDialog::addFeature( QgsVectorLayer *vlayer, const QgsFeat
     featItem->addChild( attrItem );
 
     attrItem->setData( 0, Qt::DisplayRole, vlayer->attributeDisplayName( i ) );
+    attrItem->setToolTip( 0, vlayer->attributeDisplayName( i ) );
     attrItem->setData( 0, Qt::UserRole, fields.at( i ).name() );
     attrItem->setData( 0, Qt::UserRole + 1, i );
 
     attrItem->setData( 1, Qt::UserRole, value );
 
-    value = representValue( vlayer, fields.at( i ).name(), attrs.at( i ) );
+    value = representValue( vlayer, setup, fields.at( i ).name(), attrs.at( i ) );
     attrItem->setSortData( 1, value );
+    attrItem->setToolTip( 1, value );
     bool foundLinks = false;
     QString links = QgsStringUtils::insertLinks( value, &foundLinks );
     if ( foundLinks )
@@ -518,7 +523,9 @@ void QgsIdentifyResultsDialog::addFeature( QgsVectorLayer *vlayer, const QgsFeat
     if ( fields.at( i ).name() == vlayer->displayField() )
     {
       featItem->setText( 0, attrItem->text( 0 ) );
+      featItem->setToolTip( 0, attrItem->text( 0 ) );
       featItem->setText( 1, attrItem->text( 1 ) );
+      featItem->setToolTip( 1, attrItem->text( 1 ) );
       featureLabeled = true;
     }
   }
@@ -532,7 +539,9 @@ void QgsIdentifyResultsDialog::addFeature( QgsVectorLayer *vlayer, const QgsFeat
     << QgsExpressionContextUtils::layerScope( vlayer );
     context.setFeature( f );
 
-    featItem->setText( 1, QgsExpression( vlayer->displayExpression() ).evaluate( &context ).toString() );
+    QString value = QgsExpression( vlayer->displayExpression() ).evaluate( &context ).toString();
+    featItem->setText( 1, value );
+    featItem->setToolTip( 1, value );
   }
 
   // table
@@ -543,7 +552,8 @@ void QgsIdentifyResultsDialog::addFeature( QgsVectorLayer *vlayer, const QgsFeat
       continue;
 
     QString value = fields.at( i ).displayString( attrs.at( i ) );
-    QString value2 = representValue( vlayer, fields.at( i ).name(), value );
+    const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( vlayer, fields.at( i ).name() );
+    QString value2 = representValue( vlayer, setup, fields.at( i ).name(), value );
 
     tblResults->setRowCount( j + 1 );
 
@@ -609,7 +619,7 @@ QgsIdentifyPlotCurve::QgsIdentifyPlotCurve( const QMap<QString, QString> &attrib
 
   if ( color == QColor() )
   {
-    color = QgsVectorRandomColorRamp::randomColors( 1 ).at( 0 );
+    color = QgsLimitedRandomColorRamp::randomColors( 1 ).at( 0 );
   }
 #if defined(QWT_VERSION) && QWT_VERSION>=0x060000
   mPlotCurve->setSymbol( new QwtSymbol( QwtSymbol::Ellipse, QBrush( Qt::white ),
@@ -664,13 +674,12 @@ QgsIdentifyPlotCurve::~QgsIdentifyPlotCurve()
   }
 }
 
-QString QgsIdentifyResultsDialog::representValue( QgsVectorLayer* vlayer, const QString& fieldName, const QVariant& value )
+QString QgsIdentifyResultsDialog::representValue( QgsVectorLayer* vlayer, const QgsEditorWidgetSetup& setup, const QString& fieldName, const QVariant& value )
 {
   QVariant cache;
   QMap<QString, QVariant>& layerCaches = mWidgetCaches[vlayer->id()];
 
-  QString widgetType = vlayer->editFormConfig()->widgetType( fieldName );
-  QgsEditorWidgetFactory* factory = QgsEditorWidgetRegistry::instance()->factory( widgetType );
+  QgsEditorWidgetFactory* factory = QgsEditorWidgetRegistry::instance()->factory( setup.type() );
 
   int idx = vlayer->fieldNameIndex( fieldName );
 
@@ -683,11 +692,11 @@ QString QgsIdentifyResultsDialog::representValue( QgsVectorLayer* vlayer, const 
   }
   else
   {
-    cache = factory->createCache( vlayer, idx, vlayer->editFormConfig()->widgetConfig( fieldName ) );
+    cache = factory->createCache( vlayer, idx, setup.config() );
     layerCaches.insert( fieldName, cache );
   }
 
-  return factory->representValue( vlayer, idx, vlayer->editFormConfig()->widgetConfig( fieldName ), cache, value );
+  return factory->representValue( vlayer, idx, setup.config(), cache, value );
 }
 
 void QgsIdentifyResultsDialog::addFeature( QgsRasterLayer *layer,
@@ -982,7 +991,7 @@ void QgsIdentifyResultsDialog::contextMenuEvent( QContextMenuEvent* event )
     if ( vlayer )
     {
       mActionPopup->addAction(
-        QgsApplication::getThemeIcon( "/mActionPropertyItem.png" ),
+        QgsApplication::getThemeIcon( "/mActionPropertyItem.svg" ),
         vlayer->isEditable() ? tr( "Edit feature form" ) : tr( "View feature form" ),
         this, SLOT( featureForm() ) );
     }
@@ -1502,10 +1511,12 @@ void QgsIdentifyResultsDialog::attributeValueChanged( QgsFeatureId fid, int idx,
 
         if ( item->data( 0, Qt::UserRole + 1 ).toInt() == idx )
         {
-          value = representValue( vlayer, fld.name(), val );
+          const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( vlayer, fld.name() );
+          value = representValue( vlayer, setup, fld.name(), val );
 
           QgsTreeWidgetItem* treeItem = static_cast< QgsTreeWidgetItem* >( item );
           treeItem->setSortData( 1, value );
+          treeItem->setToolTip( 1, value );
 
           bool foundLinks = false;
           QString links = QgsStringUtils::insertLinks( value, &foundLinks );

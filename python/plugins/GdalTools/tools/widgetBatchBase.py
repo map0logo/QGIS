@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import bytes
 
 __author__ = 'Giuseppe Sucameli'
 __date__ = 'June 2010'
@@ -104,7 +105,7 @@ class GdalToolsBaseBatchWidget(BasePluginWidget):
             outFile = self.outFiles[index]
 
         args = self.getBatchArguments(self.inFiles[index], outFile)
-        self.base.refreshArgs.emit(args)
+        self.base.refreshArgs(args)
         BasePluginWidget.onRun(self)
 
     def onFinished(self, exitCode, status):

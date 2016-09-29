@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 
 __author__ = 'Victor Olaya'
@@ -77,6 +79,7 @@ from processing.modeler.ModelerAlgorithm import (ValueFromInput,
                                                  Algorithm,
                                                  ModelerOutput)
 from processing.modeler.MultilineTextPanel import MultilineTextPanel
+from processing.tools import dataobjects
 
 
 class ModelerParametersDialog(QDialog):
@@ -159,7 +162,7 @@ class ModelerParametersDialog(QDialog):
             self.labels[param.name] = label
             widget = self.getWidgetFromParameter(param)
             self.valueItems[param.name] = widget
-            if param.name in tooltips.keys():
+            if param.name in list(tooltips.keys()):
                 tooltip = tooltips[param.name]
             else:
                 tooltip = param.description
@@ -242,7 +245,7 @@ class ModelerParametersDialog(QDialog):
         if reply.error() != QNetworkReply.NoError:
             html = self.tr('<h2>No help available for this algorithm</h2><p>{}</p>'.format(reply.errorString()))
         else:
-            html = unicode(reply.readAll())
+            html = str(reply.readAll())
         reply.deleteLater()
         self.txtHelp.setHtml(html)
 
@@ -252,7 +255,7 @@ class ModelerParametersDialog(QDialog):
         else:
             dependent = self.model.getDependentAlgorithms(self._algName)
         opts = []
-        for alg in self.model.algs.values():
+        for alg in list(self.model.algs.values()):
             if alg.name not in dependent:
                 opts.append(alg)
         return opts
@@ -271,24 +274,30 @@ class ModelerParametersDialog(QDialog):
                 self.labels[param.name].setVisible(self.showAdvanced)
                 self.widgets[param.name].setVisible(self.showAdvanced)
 
-    def getAvailableValuesOfType(self, paramType, outType=None):
+    def getAvailableValuesOfType(self, paramType, outType=None, dataType=None):
         values = []
         inputs = self.model.inputs
-        for i in inputs.values():
+        for i in list(inputs.values()):
             param = i.param
             if isinstance(param, paramType):
-                values.append(ValueFromInput(param.name))
+                if dataType is not None and param.datatype in dataType:
+                    values.append(ValueFromInput(param.name))
+                else:
+                    values.append(ValueFromInput(param.name))
         if outType is None:
             return values
         if self._algName is None:
             dependent = []
         else:
             dependent = self.model.getDependentAlgorithms(self._algName)
-        for alg in self.model.algs.values():
+        for alg in list(self.model.algs.values()):
             if alg.name not in dependent:
                 for out in alg.algorithm.outputs:
                     if isinstance(out, outType):
-                        values.append(ValueFromOutput(alg.name, out.name))
+                        if dataType is not None and out.datatype in dataType:
+                            values.append(ValueFromOutput(alg.name, out.name))
+                        else:
+                            values.append(ValueFromOutput(alg.name, out.name))
 
         return values
 
@@ -344,9 +353,15 @@ class ModelerParametersDialog(QDialog):
         elif isinstance(param, ParameterRange):
             item = RangePanel(param)
         elif isinstance(param, ParameterMultipleInput):
-            if param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
+            if param.datatype == dataobjects.TYPE_VECTOR_ANY:
                 options = self.getAvailableValuesOfType(ParameterVector, OutputVector)
-            elif aram.datatype == ParameterMultipleInput.TYPE_RASTER:
+            elif param.datatype == dataobjects.TYPE_VECTOR_POINT:
+                options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_POINT, dataobjects.TYPE_VECTOR_ANY])
+            elif param.datatype == dataobjects.TYPE_VECTOR_LINE:
+                options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_LINE, dataobjects.TYPE_VECTOR_ANY])
+            elif param.datatype == dataobjects.TYPE_VECTOR_POLYGON:
+                options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_ANY])
+            elif param.datatype == dataobjects.TYPE_RASTER:
                 options = self.getAvailableValuesOfType(ParameterRaster, OutputRaster)
             else:
                 options = self.getAvailableValuesOfType(ParameterFile, OutputFile)
@@ -359,13 +374,13 @@ class ModelerParametersDialog(QDialog):
             options = [(self.resolveValueDescription(s), s) for s in strings]
             if param.multiline:
                 item = MultilineTextPanel(options)
-                item.setText(unicode(param.default or ""))
+                item.setText(str(param.default or ""))
             else:
                 item = QComboBox()
                 item.setEditable(True)
                 for desc, val in options:
                     item.addItem(desc, val)
-                item.setEditText(unicode(param.default or ""))
+                item.setEditText(str(param.default or ""))
         elif isinstance(param, ParameterTableField):
             item = QComboBox()
             item.setEditable(True)
@@ -384,7 +399,7 @@ class ModelerParametersDialog(QDialog):
             numbers = self.getAvailableValuesOfType(ParameterNumber, OutputNumber)
             for n in numbers:
                 item.addItem(self.resolveValueDescription(n), n)
-            item.setEditText(unicode(param.default))
+            item.setEditText(str(param.default))
         elif isinstance(param, ParameterCrs):
             item = QComboBox()
             values = self.getAvailableValuesOfType(ParameterCrs, OutputCrs)
@@ -399,14 +414,14 @@ class ModelerParametersDialog(QDialog):
             for ex in extents:
                 item.addItem(self.resolveValueDescription(ex), ex)
             if not self.canUseAutoExtent():
-                item.setEditText(unicode(param.default))
+                item.setEditText(str(param.default))
         elif isinstance(param, ParameterPoint):
             item = QComboBox()
             item.setEditable(True)
             points = self.getAvailableValuesOfType(ParameterPoint)
             for p in points:
                 item.addItem(self.resolveValueDescription(p), p)
-            item.setEditText(unicode(param.default))
+            item.setEditText(str(param.default))
         elif isinstance(param, ParameterFile):
             item = QComboBox()
             item.setEditable(True)
@@ -418,7 +433,7 @@ class ModelerParametersDialog(QDialog):
         else:
             item = QLineEdit()
             try:
-                item.setText(unicode(param.default))
+                item.setText(str(param.default))
             except:
                 pass
         return item
@@ -469,7 +484,7 @@ class ModelerParametersDialog(QDialog):
             pass
         if combo.isEditable():
             if value is not None:
-                combo.setEditText(unicode(value))
+                combo.setEditText(str(value))
         elif isinstance(param, ParameterSelection):
             combo.setCurrentIndex(int(value))
         elif isinstance(param, ParameterBoolean):
@@ -500,7 +515,8 @@ class ModelerParametersDialog(QDialog):
                         ParameterBoolean,
                         ParameterExtent,
                         ParameterFile,
-                        ParameterPoint
+                        ParameterPoint,
+                        ParameterCrs
                 )):
                     self.setComboBoxValue(widget, value, param)
                 elif isinstance(param, ParameterString):
@@ -508,15 +524,21 @@ class ModelerParametersDialog(QDialog):
                         widget.setValue(value)
                     else:
                         self.setComboBoxValue(widget, value, param)
-                elif isinstance(param, ParameterCrs):
-                    widget.setAuthId(value)
                 elif isinstance(param, ParameterFixedTable):
                     pass  # TODO!
                 elif isinstance(param, ParameterMultipleInput):
-                    if param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
+                    if param.datatype == dataobjects.TYPE_VECTOR_ANY:
                         options = self.getAvailableValuesOfType(ParameterVector, OutputVector)
-                    else:
+                    elif param.datatype == dataobjects.TYPE_VECTOR_POINT:
+                        options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_POINT, dataobjects.TYPE_VECTOR_ANY])
+                    elif param.datatype == dataobjects.TYPE_VECTOR_LINE:
+                        options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_LINE, dataobjects.TYPE_VECTOR_ANY])
+                    elif param.datatype == dataobjects.TYPE_VECTOR_POLYGON:
+                        options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_ANY])
+                    elif param.datatype == dataobjects.TYPE_RASTER:
                         options = self.getAvailableValuesOfType(ParameterRaster, OutputRaster)
+                    else:
+                        options = self.getAvailableValuesOfType(ParameterFile, OutputFile)
                     selected = []
                     for i, opt in enumerate(options):
                         if opt in value:
@@ -525,7 +547,7 @@ class ModelerParametersDialog(QDialog):
                 elif isinstance(param, ParameterGeometryPredicate):
                     widget.setValue(value)
 
-            for name, out in alg.outputs.iteritems():
+            for name, out in alg.outputs.items():
                 widget = self.valueItems[name].setText(out.description)
 
             selected = []
@@ -551,7 +573,7 @@ class ModelerParametersDialog(QDialog):
                 return None
         for output in outputs:
             if not output.hidden:
-                name = unicode(self.valueItems[output.name].text())
+                name = str(self.valueItems[output.name].text())
                 if name.strip() != '' and name != ModelerParametersDialog.ENTER_NAME:
                     alg.outputs[output.name] = ModelerOutput(name)
 
@@ -574,7 +596,7 @@ class ModelerParametersDialog(QDialog):
     def setParamTableFieldValue(self, alg, param, widget):
         idx = widget.findText(widget.currentText())
         if idx < 0:
-            s = unicode(widget.currentText()).strip()
+            s = str(widget.currentText()).strip()
             if s == '':
                 if param.optional:
                     alg.params[param.name] = None
@@ -649,7 +671,7 @@ class ModelerParametersDialog(QDialog):
     def setParamExtentValue(self, alg, param, widget):
         idx = widget.findText(widget.currentText())
         if idx < 0:
-            s = unicode(widget.currentText()).strip()
+            s = str(widget.currentText()).strip()
             if s:
                 try:
                     tokens = s.split(',')
@@ -672,7 +694,7 @@ class ModelerParametersDialog(QDialog):
     def setParamPointValue(self, alg, param, widget):
         idx = widget.findText(widget.currentText())
         if idx < 0:
-            s = unicode(widget.currentText()).strip()
+            s = str(widget.currentText()).strip()
             if s:
                 try:
                     tokens = s.split(',')
@@ -740,10 +762,18 @@ class ModelerParametersDialog(QDialog):
                                 ParameterTableMultipleField)):
             return self.setParamTableFieldValue(alg, param, widget)
         elif isinstance(param, ParameterMultipleInput):
-            if param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
+            if param.datatype == dataobjects.TYPE_VECTOR_ANY:
                 options = self.getAvailableValuesOfType(ParameterVector, OutputVector)
-            else:
+            elif param.datatype == dataobjects.TYPE_VECTOR_POINT:
+                options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_POINT, dataobjects.TYPE_VECTOR_ANY])
+            elif param.datatype == dataobjects.TYPE_VECTOR_LINE:
+                options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_LINE, dataobjects.TYPE_VECTOR_ANY])
+            elif param.datatype == dataobjects.TYPE_VECTOR_POLYGON:
+                options = self.getAvailableValuesOfType(ParameterVector, OutputVector, [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_ANY])
+            elif param.datatype == dataobjects.TYPE_RASTER:
                 options = self.getAvailableValuesOfType(ParameterRaster, OutputRaster)
+            else:
+                options = self.getAvailableValuesOfType(ParameterFile, OutputFile)
             values = [options[i] for i in widget.selectedoptions]
             if len(values) == 0 and not param.optional:
                 return False
@@ -753,7 +783,7 @@ class ModelerParametersDialog(QDialog):
             alg.params[param.name] = widget.value()
             return True
         else:
-            alg.params[param.name] = unicode(widget.text())
+            alg.params[param.name] = str(widget.text())
             return True
 
     def okPressed(self):

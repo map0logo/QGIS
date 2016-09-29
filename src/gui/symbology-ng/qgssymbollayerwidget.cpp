@@ -27,8 +27,8 @@
 #include "qgssymbolselectordialog.h"
 #include "qgssvgcache.h"
 #include "qgssymbollayerutils.h"
-#include "qgsvectorcolorramp.h"
-#include "qgsvectorgradientcolorrampdialog.h"
+#include "qgscolorramp.h"
+#include "qgsgradientcolorrampdialog.h"
 #include "qgsdatadefined.h"
 #include "qgsstyle.h" //for symbol selector dialog
 #include "qgsmapcanvas.h"
@@ -137,29 +137,6 @@ void QgsSymbolLayerWidget::updateDataDefinedProperty()
   button->updateDataDefined( dd );
 
   emit changed();
-}
-
-QString QgsSymbolLayerWidget::dataDefinedPropertyLabel( const QString &entryName )
-{
-  QString label = entryName;
-  if ( entryName == "size" )
-  {
-    label = tr( "Size" );
-    QgsMarkerSymbolLayer * layer = dynamic_cast<QgsMarkerSymbolLayer *>( symbolLayer() );
-    if ( layer )
-    {
-      switch ( layer->scaleMethod() )
-      {
-        case QgsSymbol::ScaleArea:
-          label += " (" + tr( "area" ) + ')';
-          break;
-        case QgsSymbol::ScaleDiameter:
-          label += " (" + tr( "diameter" ) + ')';
-          break;
-      }
-    }
-  }
-  return label;
 }
 
 QgsSimpleLineSymbolLayerWidget::QgsSimpleLineSymbolLayerWidget( const QgsVectorLayer* vl, QWidget* parent )
@@ -451,7 +428,7 @@ QgsSimpleMarkerSymbolLayerWidget::QgsSimpleMarkerSymbolLayerWidget( const QgsVec
     delete lyr;
   }
 
-  connect( lstNames, SIGNAL( currentRowChanged( int ) ), this, SLOT( setName() ) );
+  connect( lstNames, SIGNAL( currentRowChanged( int ) ), this, SLOT( setShape() ) );
   connect( btnChangeColorBorder, SIGNAL( colorChanged( const QColor& ) ), this, SLOT( setColorBorder( const QColor& ) ) );
   connect( btnChangeColorFill, SIGNAL( colorChanged( const QColor& ) ), this, SLOT( setColorFill( const QColor& ) ) );
   connect( cboJoinStyle, SIGNAL( currentIndexChanged( int ) ), this, SLOT( penJoinStyleChanged() ) );
@@ -562,7 +539,7 @@ QgsSymbolLayer* QgsSimpleMarkerSymbolLayerWidget::symbolLayer()
   return mLayer;
 }
 
-void QgsSimpleMarkerSymbolLayerWidget::setName()
+void QgsSimpleMarkerSymbolLayerWidget::setShape()
 {
   mLayer->setShape( static_cast< QgsSimpleMarkerSymbolLayerBase::Shape>( lstNames->currentItem()->data( Qt::UserRole ).toInt() ) );
   btnChangeColorFill->setEnabled( QgsSimpleMarkerSymbolLayerBase::shapeIsFilled( mLayer->shape() ) );
@@ -1233,7 +1210,7 @@ void QgsGradientFillSymbolLayerWidget::colorModeChanged()
 
 void QgsGradientFillSymbolLayerWidget::applyColorRamp()
 {
-  QgsVectorColorRamp* ramp = cboGradientColorRamp->currentColorRamp();
+  QgsColorRamp* ramp = cboGradientColorRamp->currentColorRamp();
   if ( !ramp )
     return;
 
@@ -1567,7 +1544,7 @@ void QgsShapeburstFillSymbolLayerWidget::on_mRadioUseWholeShape_toggled( bool va
 
 void QgsShapeburstFillSymbolLayerWidget::applyColorRamp()
 {
-  QgsVectorColorRamp* ramp = cboGradientColorRamp->currentColorRamp();
+  QgsColorRamp* ramp = cboGradientColorRamp->currentColorRamp();
   if ( !ramp )
     return;
 
@@ -3346,23 +3323,20 @@ QgsGeometryGeneratorSymbolLayerWidget::QgsGeometryGeneratorSymbolLayerWidget( co
     , mLayer( nullptr )
 {
   setupUi( this );
+  modificationExpressionSelector->setMultiLine( true );
   modificationExpressionSelector->setLayer( const_cast<QgsVectorLayer*>( vl ) );
-  modificationExpressionSelector->loadFieldNames();
-  modificationExpressionSelector->setExpressionContext( createExpressionContext() );
+  modificationExpressionSelector->registerExpressionContextGenerator( this );
   cbxGeometryType->addItem( QgsApplication::getThemeIcon( "/mIconPolygonLayer.svg" ), tr( "Polygon / MultiPolygon" ), QgsSymbol::Fill );
   cbxGeometryType->addItem( QgsApplication::getThemeIcon( "/mIconLineLayer.svg" ), tr( "LineString / MultiLineString" ), QgsSymbol::Line );
   cbxGeometryType->addItem( QgsApplication::getThemeIcon( "/mIconPointLayer.svg" ), tr( "Point / MultiPoint" ), QgsSymbol::Marker );
-  connect( modificationExpressionSelector, SIGNAL( expressionParsed( bool ) ), this, SLOT( updateExpression() ) );
+  connect( modificationExpressionSelector, SIGNAL( expressionChanged( QString ) ), this, SLOT( updateExpression( QString ) ) );
   connect( cbxGeometryType, SIGNAL( currentIndexChanged( int ) ), this, SLOT( updateSymbolType() ) );
 }
 
 void QgsGeometryGeneratorSymbolLayerWidget::setSymbolLayer( QgsSymbolLayer* l )
 {
   mLayer = static_cast<QgsGeometryGeneratorSymbolLayer*>( l );
-
-  if ( mPresetExpressionContext )
-    modificationExpressionSelector->setExpressionContext( *mPresetExpressionContext );
-  modificationExpressionSelector->setExpressionText( mLayer->geometryExpression() );
+  modificationExpressionSelector->setExpression( mLayer->geometryExpression() );
   cbxGeometryType->setCurrentIndex( cbxGeometryType->findData( mLayer->symbolType() ) );
 }
 
@@ -3371,16 +3345,16 @@ QgsSymbolLayer* QgsGeometryGeneratorSymbolLayerWidget::symbolLayer()
   return mLayer;
 }
 
-void QgsGeometryGeneratorSymbolLayerWidget::updateExpression()
+void QgsGeometryGeneratorSymbolLayerWidget::updateExpression( const QString& string )
 {
-  mLayer->setGeometryExpression( modificationExpressionSelector->expressionText() );
+  mLayer->setGeometryExpression( string );
 
   emit changed();
 }
 
 void QgsGeometryGeneratorSymbolLayerWidget::updateSymbolType()
 {
-  mLayer->setSymbolType( static_cast<QgsSymbol::SymbolType>( cbxGeometryType->itemData( cbxGeometryType->currentIndex() ).toInt() ) );
+  mLayer->setSymbolType( static_cast<QgsSymbol::SymbolType>( cbxGeometryType->currentData().toInt() ) );
 
   emit symbolChanged();
 }

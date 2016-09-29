@@ -259,9 +259,6 @@ class CORE_EXPORT QgsRasterLayer : public QgsMapLayer
      */
     virtual QgsMapLayerRenderer* createMapRenderer( QgsRenderContext& rendererContext ) override;
 
-    /** \brief This is called when the view on the raster layer needs to be redrawn */
-    bool draw( QgsRenderContext& rendererContext ) override;
-
     /** \brief This is an overloaded version of the draw() function that is called by both draw() and thumbnailAsPixmap */
     void draw( QPainter * theQPainter,
                QgsRasterViewPort * myRasterViewPort,
@@ -302,20 +299,11 @@ class CORE_EXPORT QgsRasterLayer : public QgsMapLayer
     /** \brief Set default contrast enhancement */
     void setDefaultContrastEnhancement();
 
-    /** \brief Overloaded version of the above function for convenience when restoring from xml
-     * @deprecated Deprecated since QGIS 2.10. Use setRendererForDrawingStyle() or directly setRenderer()
-     */
-    Q_DECL_DEPRECATED void setDrawingStyle( const QString & theDrawingStyleQString );
-
     /** \brief [ data provider interface ] A wrapper function to emit a progress update signal */
     void showProgress( int theValue );
 
     /** \brief Returns the sublayers of this layer - Useful for providers that manage their own layers, such as WMS */
     virtual QStringList subLayers() const override;
-
-    /** \brief Draws a preview of the rasterlayer into a pixmap
-    @deprecated use previewAsImage() for rendering with QGIS>=2.4 */
-    Q_DECL_DEPRECATED QPixmap previewAsPixmap( QSize size, const QColor& bgColor = Qt::white );
 
     /** \brief Draws a preview of the rasterlayer into a QImage
      @note added in 2.4 */
@@ -340,9 +328,6 @@ class CORE_EXPORT QgsRasterLayer : public QgsMapLayer
 
   public slots:
     void showStatusMessage( const QString & theMessage );
-
-    //! @deprecated in 2.4 - does nothing
-    Q_DECL_DEPRECATED void updateProgress( int, int );
 
     /** \brief receive progress signal from provider */
     void onProgress( int, double, const QString& );

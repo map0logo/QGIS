@@ -249,6 +249,15 @@ class QgsPostgresProvider : public QgsVectorDataProvider
      */
     virtual QgsTransaction* transaction() const override;
 
+    /**
+     * Convert the postgres string representation into the given QVariant type.
+     * @param type the wanted type
+     * @param subType if type is a collection, the wanted element type
+     * @param value the value to convert
+     * @return a QVariant of the given type or a null QVariant
+     */
+    static QVariant convertValue( QVariant::Type type, QVariant::Type subType, const QString& value );
+
   signals:
     /**
      *   This is emitted whenever the worker thread has fully calculated the
@@ -299,6 +308,10 @@ class QgsPostgresProvider : public QgsVectorDataProvider
     /** Load the field list
      */
     bool loadFields();
+
+    /** Set the default widget type for the fields
+     */
+    void setEditorWidgets();
 
     /** Convert a QgsField to work with PG */
     static bool convertField( QgsField &field, const QMap<QString, QVariant> *options = nullptr );

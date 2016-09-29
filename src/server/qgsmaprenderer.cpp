@@ -22,6 +22,7 @@
 #include "qgsmessagelog.h"
 #include "qgsmaprenderer.h"
 #include "qgsscalecalculator.h"
+#include "qgsmaplayerrenderer.h"
 #include "qgsmaptopixel.h"
 #include "qgsmaplayer.h"
 #include "qgsmaplayerregistry.h"
@@ -228,13 +229,19 @@ void QgsMapRenderer::adjustExtentToSize()
 
   QgsDebugMsg( QString( "Scale (assuming meters as map units) = 1:%1" ).arg( qgsDoubleToString( mScale ) ) );
 
-  Q_NOWARN_DEPRECATED_PUSH
-  newCoordXForm.setParameters( mMapUnitsPerPixel, dxmin, dymin, myHeight );
-  Q_NOWARN_DEPRECATED_POP
+  newCoordXForm.setParameters( mMapUnitsPerPixel, mExtent.center().x(), mExtent.center().y(), myWidth, myHeight, 0 );
   mRenderContext.setMapToPixel( newCoordXForm );
   mRenderContext.setExtent( mExtent );
 }
 
+
+static bool drawLayer( QgsMapLayer* ml, QgsRenderContext& context )
+{
+  QgsMapLayerRenderer* mlr = ml->createMapRenderer( context );
+  bool res = mlr->render();
+  delete mlr;
+  return res;
+}
 
 void QgsMapRenderer::render( QPainter* painter, double* forceWidthScale )
 {
@@ -489,16 +496,17 @@ void QgsMapRenderer::render( QPainter* painter, double* forceWidthScale )
       {
         bk_mapToPixel = mRenderContext.mapToPixel();
         rasterMapToPixel = mRenderContext.mapToPixel();
-        rasterMapToPixel.setMapUnitsPerPixel( mRenderContext.mapToPixel().mapUnitsPerPixel() / rasterScaleFactor );
-        Q_NOWARN_DEPRECATED_PUSH
-        rasterMapToPixel.setYMaximum( mSize.height() * rasterScaleFactor );
-        Q_NOWARN_DEPRECATED_POP
+        rasterMapToPixel.setParameters( mRenderContext.mapToPixel().mapUnitsPerPixel() / rasterScaleFactor,
+                                        mRenderContext.mapToPixel().xCenter(),
+                                        mRenderContext.mapToPixel().yCenter(),
+                                        mSize.width() * rasterScaleFactor,
+                                        mSize.height() * rasterScaleFactor, 0 );
         mRenderContext.setMapToPixel( rasterMapToPixel );
         mRenderContext.painter()->save();
         mRenderContext.painter()->scale( 1.0 / rasterScaleFactor, 1.0 / rasterScaleFactor );
       }
 
-      if ( !ml->draw( mRenderContext ) )
+      if ( !drawLayer( ml, mRenderContext ) )
       {
         emit drawError( ml );
       }
@@ -510,7 +518,7 @@ void QgsMapRenderer::render( QPainter* painter, double* forceWidthScale )
       if ( split )
       {
         mRenderContext.setExtent( r2 );
-        if ( !ml->draw( mRenderContext ) )
+        if ( !drawLayer( ml, mRenderContext ) )
         {
           emit drawError( ml );
         }

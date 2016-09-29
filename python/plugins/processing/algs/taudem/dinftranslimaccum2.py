@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'October 2012'
@@ -38,6 +41,8 @@ from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterBoolean
 from processing.core.outputs import OutputRaster
+
+from processing.tools import dataobjects
 
 from .TauDEMUtils import TauDEMUtils
 
@@ -73,7 +78,7 @@ class DinfTransLimAccum2(GeoAlgorithm):
                                           self.tr('Input Concentration Grid'), False))
         self.addParameter(ParameterVector(self.OUTLETS_SHAPE,
                                           self.tr('Outlets Shapefile'),
-                                          [ParameterVector.VECTOR_TYPE_POINT], True))
+                                          [dataobjects.TYPE_VECTOR_POINT], True))
         self.addParameter(ParameterBoolean(self.EDGE_CONTAM,
                                            self.tr('Check for edge contamination'), True))
 
@@ -95,7 +100,7 @@ class DinfTransLimAccum2(GeoAlgorithm):
                         'correct number before running TauDEM algorithms.'))
 
         commands.append('-n')
-        commands.append(unicode(processNum))
+        commands.append(str(processNum))
         commands.append(os.path.join(TauDEMUtils.taudemPath(), self.cmdName))
         commands.append('-ang')
         commands.append(self.getParameterValue(self.DINF_FLOW_DIR_GRID))

@@ -24,13 +24,17 @@ class QgsField
      * @param prec Field precision. Usually decimal places but may also be
      * used in conjunction with other fields types (eg. variable character fields)
      * @param comment Comment for the field
+     * @param subType If the field is a collection, its element's type. When
+     *                all the elements don't need to have the same type, leave
+     *                this to QVariant::Invalid.
      */
     QgsField( const QString& name = QString(),
               QVariant::Type type = QVariant::Invalid,
               const QString& typeName = QString(),
               int len = 0,
               int prec = 0,
-              const QString& comment = QString() );
+              const QString& comment = QString(),
+              QVariant::Type subType = QVariant::Invalid );
 
     /** Copy constructor
      */
@@ -42,11 +46,30 @@ class QgsField
     bool operator==( const QgsField& other ) const;
     bool operator!=( const QgsField& other ) const;
 
-    //! Gets the name of the field
+    /** Returns the name of the field.
+     * @see setName()
+     * @see displayName()
+     */
     QString name() const;
+
+    /** Returns the name to use when displaying this field. This will be the
+     * field alias if set, otherwise the field name.
+     * @see name()
+     * @see alias()
+     * @note added in QGIS 3.0
+     */
+    QString displayName() const;
 
     //! Gets variant type of the field as it will be retrieved from data source
     QVariant::Type type() const;
+
+    /**
+     * If the field is a collection, gets its element's type.
+     * When all the elements don't need to have the same type, this returns
+     * QVariant::Invalid.
+     * @note added in QGIS 3.0
+     */
+    QVariant::Type subType() const;
 
     /**
      * Gets the field type. Field types vary depending on the data source. Examples
@@ -93,6 +116,14 @@ class QgsField
     void setType( QVariant::Type type );
 
     /**
+     * If the field is a collection, set its element's type.
+     * When all the elements don't need to have the same type, set this to
+     * QVariant::Invalid.
+     * @note added in QGIS 3.0
+     */
+    void setSubType( QVariant::Type subType );
+
+    /**
      * Set the field type.
      * @param typeName Field type
      */
@@ -114,6 +145,36 @@ class QgsField
      * Set the field comment
      */
     void setComment( const QString& comment );
+
+    /** Returns the expression used when calculating the default value for the field.
+     * @returns expression evaluated when calculating default values for field, or an
+     * empty string if no default is set
+     * @note added in QGIS 3.0
+     * @see setDefaultValueExpression()
+     */
+    QString defaultValueExpression() const;
+
+    /** Sets an expression to use when calculating the default value for the field.
+     * @param expression expression to evaluate when calculating default values for field. Pass
+     * an empty expression to clear the default.
+     * @note added in QGIS 3.0
+     * @see defaultValueExpression()
+     */
+    void setDefaultValueExpression( const QString& expression );
+
+    /** Returns the alias for the field (the friendly displayed name of the field ),
+     * or an empty string if there is no alias.
+     * @see setAlias()
+     * @note added in QGIS 3.0
+     */
+    QString alias() const;
+
+    /** Sets the alias for the field (the friendly displayed name of the field ).
+     * @param alias field alias, or empty string to remove an existing alias
+     * @see alias()
+     * @note added in QGIS 3.0
+     */
+    void setAlias( const QString& alias );
 
     /** Formats string for display*/
     QString displayString( const QVariant& v ) const;
@@ -179,6 +240,19 @@ class QgsField
     //! Allows direct construction of QVariants from fields.
     operator QVariant() const;
 
+    /**
+     * Set the editor widget setup for the field.
+     *
+     * @param v  The value to set
+     */
+    void setEditorWidgetSetup( const QgsEditorWidgetSetup& v );
+
+    /**
+     * Get the editor widget setup for the field.
+     *
+     * @return the value
+     */
+    const QgsEditorWidgetSetup& editorWidgetSetup() const;
 }; // class QgsField
 
 

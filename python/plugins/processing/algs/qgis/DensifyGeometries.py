@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'October 2012'
@@ -50,7 +51,7 @@ class DensifyGeometries(GeoAlgorithm):
 
         self.addParameter(ParameterVector(self.INPUT,
                                           self.tr('Input layer'),
-                                          [ParameterVector.VECTOR_TYPE_POLYGON, ParameterVector.VECTOR_TYPE_LINE]))
+                                          [dataobjects.TYPE_VECTOR_POLYGON, dataobjects.TYPE_VECTOR_LINE]))
         self.addParameter(ParameterNumber(self.VERTICES,
                                           self.tr('Vertices to add'), 1, 10000000, 1))
 
@@ -113,11 +114,11 @@ class DensifyGeometries(GeoAlgorithm):
     def densify(self, polyline, pointsNumber):
         output = []
         multiplier = 1.0 / float(pointsNumber + 1)
-        for i in xrange(len(polyline) - 1):
+        for i in range(len(polyline) - 1):
             p1 = polyline[i]
             p2 = polyline[i + 1]
             output.append(p1)
-            for j in xrange(pointsNumber):
+            for j in range(pointsNumber):
                 delta = multiplier * (j + 1)
                 x = p1.x() + delta * (p2.x() - p1.x())
                 y = p1.y() + delta * (p2.y() - p1.y())

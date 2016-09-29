@@ -24,6 +24,7 @@ from qgis.core import (
     QgsTransactionGroup,
     NULL
 )
+from qgis.gui import QgsEditorWidgetRegistry
 from qgis.PyQt.QtCore import QSettings, QDate, QTime, QDateTime, QVariant
 from qgis.testing import start_app, unittest
 from utilities import unitTestDataPath
@@ -38,7 +39,7 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
-        cls.dbconn = u'dbname=\'qgis_test\''
+        cls.dbconn = 'dbname=\'qgis_test\''
         if 'QGIS_PGTEST_DB' in os.environ:
             cls.dbconn = os.environ['QGIS_PGTEST_DB']
         # Create test layers
@@ -48,16 +49,17 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
         cls.poly_vl = QgsVectorLayer(cls.dbconn + ' sslmode=disable key=\'pk\' srid=4326 type=POLYGON table="qgis_test"."some_poly_data" (geom) sql=', 'test', 'postgres')
         assert cls.poly_vl.isValid()
         cls.poly_provider = cls.poly_vl.dataProvider()
+        QgsEditorWidgetRegistry.instance().initEditors()
 
     @classmethod
     def tearDownClass(cls):
         """Run after all tests"""
 
     def enableCompiler(self):
-        QSettings().setValue(u'/qgis/compileExpressions', True)
+        QSettings().setValue('/qgis/compileExpressions', True)
 
     def disableCompiler(self):
-        QSettings().setValue(u'/qgis/compileExpressions', False)
+        QSettings().setValue('/qgis/compileExpressions', False)
 
     def uncompiledFilters(self):
         return set(['intersects($geometry,geom_from_wkt( \'Polygon ((-72.2 66.1, -65.2 66.1, -65.2 72.0, -72.2 72.0, -72.2 66.1))\'))'])
@@ -67,7 +69,7 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
 
     # HERE GO THE PROVIDER SPECIFIC TESTS
     def testDefaultValue(self):
-        self.assertEqual(self.provider.defaultValue(0), u'nextval(\'qgis_test."someData_pk_seq"\'::regclass)')
+        self.assertEqual(self.provider.defaultValue(0), 'nextval(\'qgis_test."someData_pk_seq"\'::regclass)')
         self.assertEqual(self.provider.defaultValue(1), NULL)
         self.assertEqual(self.provider.defaultValue(2), '\'qgis\'::text')
 
@@ -266,7 +268,7 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
         expected['fld_text_domain'] = {'type': QVariant.String, 'typeName': 'qgis_test.text_domain', 'length': -1}
         expected['fld_numeric_domain'] = {'type': QVariant.Double, 'typeName': 'qgis_test.numeric_domain', 'length': 10, 'precision': 4}
 
-        for f, e in expected.items():
+        for f, e in list(expected.items()):
             self.assertEqual(fields.at(fields.indexFromName(f)).type(), e['type'])
             self.assertEqual(fields.at(fields.indexFromName(f)).typeName(), e['typeName'])
             self.assertEqual(fields.at(fields.indexFromName(f)).length(), e['length'])
@@ -312,13 +314,123 @@ class TestPyQgsPostgresProvider(unittest.TestCase, ProviderTestCase):
         self.assertEqual(fet.fields()[1].name(), 'newname2')
         self.assertEqual(fet.fields()[2].name(), 'another')
 
+    def testEditorWidgetTypes(self):
+        """Test that editor widget types can be fetched from the qgis_editor_widget_styles table"""
+
+        vl = QgsVectorLayer('%s table="qgis_test"."widget_styles" sql=' % (self.dbconn), "widget_styles", "postgres")
+        self.assertTrue(vl.isValid())
+        fields = vl.dataProvider().fields()
+
+        setup1 = fields.field("fld1").editorWidgetSetup()
+        self.assertFalse(setup1.isNull())
+        self.assertEqual(setup1.type(), "FooEdit")
+        self.assertEqual(setup1.config(), {"param1": "value1", "param2": "2"})
+
+        best1 = QgsEditorWidgetRegistry.instance().findBest(vl, "fld1")
+        self.assertEqual(best1.type(), "FooEdit")
+        self.assertEqual(best1.config(), setup1.config())
+
+        self.assertTrue(fields.field("fld2").editorWidgetSetup().isNull())
+
+        best2 = QgsEditorWidgetRegistry.instance().findBest(vl, "fld2")
+        self.assertEqual(best2.type(), "TextEdit")
+
+    def testHstore(self):
+        vl = QgsVectorLayer('%s table="qgis_test"."dict" sql=' % (self.dbconn), "testhstore", "postgres")
+        self.assertTrue(vl.isValid())
+
+        fields = vl.dataProvider().fields()
+        self.assertEqual(fields.at(fields.indexFromName('value')).type(), QVariant.Map)
+
+        f = next(vl.getFeatures(QgsFeatureRequest()))
+
+        value_idx = vl.fieldNameIndex('value')
+        self.assertTrue(isinstance(f.attributes()[value_idx], dict))
+        self.assertEqual(f.attributes()[value_idx], {'a': 'b', '1': '2'})
+
+        new_f = QgsFeature(vl.fields())
+        new_f['pk'] = NULL
+        new_f['value'] = {'simple': '1', 'doubleQuote': '"y"', 'quote': "'q'", 'backslash': '\\'}
+        r, fs = vl.dataProvider().addFeatures([new_f])
+        self.assertTrue(r)
+        new_pk = fs[0]['pk']
+        self.assertNotEqual(new_pk, NULL, fs[0].attributes())
+
+        try:
+            read_back = vl.getFeature(new_pk)
+            self.assertEqual(read_back['pk'], new_pk)
+            self.assertEqual(read_back['value'], new_f['value'])
+        finally:
+            self.assertTrue(vl.startEditing())
+            self.assertTrue(vl.deleteFeatures([new_pk]))
+            self.assertTrue(vl.commitChanges())
+
+    def testStringArray(self):
+        vl = QgsVectorLayer('%s table="qgis_test"."string_array" sql=' % (self.dbconn), "teststringarray", "postgres")
+        self.assertTrue(vl.isValid())
+
+        fields = vl.dataProvider().fields()
+        self.assertEqual(fields.at(fields.indexFromName('value')).type(), QVariant.StringList)
+        self.assertEqual(fields.at(fields.indexFromName('value')).subType(), QVariant.String)
+
+        f = next(vl.getFeatures(QgsFeatureRequest()))
+
+        value_idx = vl.fieldNameIndex('value')
+        self.assertTrue(isinstance(f.attributes()[value_idx], list))
+        self.assertEqual(f.attributes()[value_idx], ['a', 'b', 'c'])
+
+        new_f = QgsFeature(vl.fields())
+        new_f['pk'] = NULL
+        new_f['value'] = ['simple', '"doubleQuote"', "'quote'", 'back\\slash']
+        r, fs = vl.dataProvider().addFeatures([new_f])
+        self.assertTrue(r)
+        new_pk = fs[0]['pk']
+        self.assertNotEqual(new_pk, NULL, fs[0].attributes())
+
+        try:
+            read_back = vl.getFeature(new_pk)
+            self.assertEqual(read_back['pk'], new_pk)
+            self.assertEqual(read_back['value'], new_f['value'])
+        finally:
+            self.assertTrue(vl.startEditing())
+            self.assertTrue(vl.deleteFeatures([new_pk]))
+            self.assertTrue(vl.commitChanges())
+
+    def testIntArray(self):
+        vl = QgsVectorLayer('%s table="qgis_test"."int_array" sql=' % (self.dbconn), "testintarray", "postgres")
+        self.assertTrue(vl.isValid())
+
+        fields = vl.dataProvider().fields()
+        self.assertEqual(fields.at(fields.indexFromName('value')).type(), QVariant.List)
+        self.assertEqual(fields.at(fields.indexFromName('value')).subType(), QVariant.Int)
+
+        f = next(vl.getFeatures(QgsFeatureRequest()))
+
+        value_idx = vl.fieldNameIndex('value')
+        self.assertTrue(isinstance(f.attributes()[value_idx], list))
+        self.assertEqual(f.attributes()[value_idx], [1, 2, -5])
+
+    def testDoubleArray(self):
+        vl = QgsVectorLayer('%s table="qgis_test"."double_array" sql=' % (self.dbconn), "testdoublearray", "postgres")
+        self.assertTrue(vl.isValid())
+
+        fields = vl.dataProvider().fields()
+        self.assertEqual(fields.at(fields.indexFromName('value')).type(), QVariant.List)
+        self.assertEqual(fields.at(fields.indexFromName('value')).subType(), QVariant.Double)
+
+        f = next(vl.getFeatures(QgsFeatureRequest()))
+
+        value_idx = vl.fieldNameIndex('value')
+        self.assertTrue(isinstance(f.attributes()[value_idx], list))
+        self.assertEqual(f.attributes()[value_idx], [1.1, 2, -5.12345])
+
 
 class TestPyQgsPostgresProviderCompoundKey(unittest.TestCase, ProviderTestCase):
 
     @classmethod
     def setUpClass(cls):
         """Run before all tests"""
-        cls.dbconn = u'dbname=\'qgis_test\''
+        cls.dbconn = 'dbname=\'qgis_test\''
         if 'QGIS_PGTEST_DB' in os.environ:
             cls.dbconn = os.environ['QGIS_PGTEST_DB']
         # Create test layers
@@ -331,16 +443,17 @@ class TestPyQgsPostgresProviderCompoundKey(unittest.TestCase, ProviderTestCase):
         """Run after all tests"""
 
     def enableCompiler(self):
-        QSettings().setValue(u'/qgis/compileExpressions', True)
+        QSettings().setValue('/qgis/compileExpressions', True)
 
     def disableCompiler(self):
-        QSettings().setValue(u'/qgis/compileExpressions', False)
+        QSettings().setValue('/qgis/compileExpressions', False)
 
     def uncompiledFilters(self):
         return set(['intersects($geometry,geom_from_wkt( \'Polygon ((-72.2 66.1, -65.2 66.1, -65.2 72.0, -72.2 72.0, -72.2 66.1))\'))'])
 
     def partiallyCompiledFilters(self):
         return set([])
+
 
 if __name__ == '__main__':
     unittest.main()

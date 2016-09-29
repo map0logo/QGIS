@@ -32,6 +32,7 @@
 #include "qgsrectangle.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsrendercontext.h"
+#include "qgsmaplayerdependency.h"
 
 class QgsMapLayerLegend;
 class QgsMapLayerRenderer;
@@ -291,15 +292,7 @@ class CORE_EXPORT QgsMapLayer : public QObject
     /** Return new instance of QgsMapLayerRenderer that will be used for rendering of given context
      * @note added in 2.4
      */
-    virtual QgsMapLayerRenderer* createMapRenderer( QgsRenderContext& rendererContext ) { Q_UNUSED( rendererContext ); return nullptr; }
-
-    /** This is the method that does the actual work of
-     * drawing the layer onto a paint device.
-     * @param rendererContext describes the extents,
-     * resolumon etc. that should be used when rendering the
-     * layer.
-     */
-    virtual bool draw( QgsRenderContext& rendererContext );
+    virtual QgsMapLayerRenderer* createMapRenderer( QgsRenderContext& rendererContext ) = 0;
 
     /** Returns the extent of the layer. */
     virtual QgsRectangle extent() const;
@@ -698,6 +691,25 @@ class CORE_EXPORT QgsMapLayer : public QObject
      */
     void emitStyleChanged();
 
+    /**
+     * Sets the list of dependencies.
+     * @see dependencies()
+     *
+     * @param layers set of QgsMapLayerDependency. Only user-defined dependencies will be added
+     * @returns false if a dependency cycle has been detected
+     * @note added in QGIS 3.0
+     */
+    virtual bool setDependencies( const QSet<QgsMapLayerDependency>& layers );
+
+    /**
+     * Gets the list of dependencies. This includes data dependencies set by the user (@see setDataDependencies)
+     * as well as dependencies given by the provider
+     *
+     * @returns a set of QgsMapLayerDependency
+     * @note added in QGIS 3.0
+     */
+    virtual QSet<QgsMapLayerDependency> dependencies() const;
+
   signals:
 
     /** Emit a signal with status (e.g. to be caught by QgisApp and display a msg on status bar) */
@@ -751,6 +763,11 @@ class CORE_EXPORT QgsMapLayer : public QObject
      * to be marked as dirty.
      */
     void configChanged();
+
+    /**
+     * Emitted when dependencies are changed.
+     */
+    void dependenciesChanged();
 
   protected:
     /** Set the extent */
@@ -835,6 +852,12 @@ class CORE_EXPORT QgsMapLayer : public QObject
 
     /** \brief Error */
     QgsError mError;
+
+    //! List of layers that may modify this layer on modification
+    QSet<QgsMapLayerDependency> mDependencies;
+
+    //! Checks whether a new set of dependencies will introduce a cycle
+    bool hasDependencyCycle( const QSet<QgsMapLayerDependency>& layers ) const;
 
   private:
     /**

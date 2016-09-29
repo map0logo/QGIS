@@ -47,9 +47,11 @@ class SelectByAttributeSum(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector selection tools')
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input Layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input Layer')))
         self.addParameter(ParameterTableField(self.FIELD,
-                                              self.tr('Selection attribute'), self.INPUT, ParameterTableField.DATA_TYPE_NUMBER))
+                                              self.tr('Selection attribute'),
+                                              self.INPUT,
+                                              ParameterTableField.DATA_TYPE_NUMBER))
         self.addParameter(ParameterNumber(self.VALUE, self.tr('Value')))
 
         self.addOutput(OutputVector(self.OUTPUT, self.tr('Selected (attribute sum)'), True))
@@ -80,7 +82,7 @@ class SelectByAttributeSum(GeoAlgorithm):
                 break
 
             for i in intersected:
-                ft = layer.getFeatures(req.setFilterFid(i)).next()
+                ft = next(layer.getFeatures(req.setFilterFid(i)))
                 tmpGeom = ft.geometry()
                 if tmpGeom.touches(geom):
                     geom = tmpGeom.combine(geom)

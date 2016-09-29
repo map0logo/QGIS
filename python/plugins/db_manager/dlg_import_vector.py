@@ -21,6 +21,8 @@ The content of this file is based on
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
+from builtins import range
 
 from qgis.PyQt.QtCore import Qt, QSettings, QFileInfo
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QApplication
@@ -34,7 +36,7 @@ from .ui.ui_DlgImportVector import Ui_DbManagerDlgImportVector as Ui_Dialog
 
 
 class DlgImportVector(QDialog, Ui_Dialog):
-    HAS_INPUT_MODE, ASK_FOR_INPUT_MODE = range(2)
+    HAS_INPUT_MODE, ASK_FOR_INPUT_MODE = list(range(2))
 
     def __init__(self, inLayer, outDb, outUri, parent=None):
         QDialog.__init__(self, parent)
@@ -130,8 +132,8 @@ class DlgImportVector(QDialog, Ui_Dialog):
         lastDir = settings.value("/db_manager/lastUsedDir", "")
         lastVectorFormat = settings.value("/UI/lastVectorFileFilter", "")
         # ask for a filename
-        (filename, lastVectorFormat) = QFileDialog.getOpenFileNameAndFilter(self, self.tr("Choose the file to import"),
-                                                                            lastDir, vectorFormats, lastVectorFormat)
+        filename, lastVectorFormat = QFileDialog.getOpenFileName(self, self.tr("Choose the file to import"),
+                                                                 lastDir, vectorFormats, lastVectorFormat)
         if filename == "":
             return
         # store the last used dir and format
@@ -334,7 +336,7 @@ class DlgImportVector(QDialog, Ui_Dialog):
             ret, errMsg = QgsVectorLayerImport.importLayer(self.inLayer, uri, providerName, outCrs, onlySelected, False, options)
         except Exception as e:
             ret = -1
-            errMsg = unicode(e)
+            errMsg = str(e)
 
         finally:
             # restore input layer crs and encoding

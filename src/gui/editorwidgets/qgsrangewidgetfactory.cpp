@@ -71,18 +71,12 @@ void QgsRangeWidgetFactory::writeConfig( const QgsEditorWidgetConfig& config, QD
   }
 }
 
-bool QgsRangeWidgetFactory::isFieldSupported( QgsVectorLayer* vl, int fieldIdx )
+unsigned int QgsRangeWidgetFactory::fieldScore( const QgsVectorLayer* vl, int fieldIdx ) const
 {
-  switch ( vl->fields().at( fieldIdx ).type() )
-  {
-    case QVariant::LongLong:
-    case QVariant::Double:
-    case QVariant::Int:
-      return true;
-
-    default:
-      return false;
-  }
+  const QgsField field = vl->fields().at( fieldIdx );
+  if ( field.type() == QVariant::Int || field.type() == QVariant::Double ) return 20;
+  if ( field.isNumeric() ) return 5; // widgets used support only signed 32bits (int) and double
+  return 0;
 }
 
 QMap<const char*, int> QgsRangeWidgetFactory::supportedWidgetTypes()

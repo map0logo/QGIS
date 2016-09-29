@@ -17,6 +17,50 @@
 #include <QVector>
 #include <QRegExp>
 #include <QTextDocument> // for Qt::escape
+#include <QStringList>
+#include <QTextBoundaryFinder>
+
+QString QgsStringUtils::capitalize( const QString& string, QgsStringUtils::Capitalization capitalization )
+{
+  if ( string.isEmpty() )
+    return QString();
+
+  switch ( capitalization )
+  {
+    case MixedCase:
+      return string;
+
+    case AllUppercase:
+      return string.toUpper();
+
+    case AllLowercase:
+      return string.toLower();
+
+    case ForceFirstLetterToCapital:
+    {
+      QString temp = string;
+
+      QTextBoundaryFinder wordSplitter( QTextBoundaryFinder::Word, string.constData(), string.length(), 0, 0 );
+      QTextBoundaryFinder letterSplitter( QTextBoundaryFinder::Grapheme, string.constData(), string.length(), 0, 0 );
+
+      wordSplitter.setPosition( 0 );
+      bool first = true;
+      while (( first && wordSplitter.boundaryReasons() & QTextBoundaryFinder::StartOfItem )
+             || wordSplitter.toNextBoundary() >= 0 )
+      {
+        first = false;
+        letterSplitter.setPosition( wordSplitter.position() );
+        letterSplitter.toNextBoundary();
+        QString substr = string.mid( wordSplitter.position(), letterSplitter.position() - wordSplitter.position() );
+        temp.replace( wordSplitter.position(), substr.length(), substr.toUpper() );
+      }
+      return temp;
+    }
+
+  }
+  // no warnings
+  return string;
+}
 
 int QgsStringUtils::levenshteinDistance( const QString& string1, const QString& string2, bool caseSensitive )
 {
@@ -336,4 +380,90 @@ QString QgsStringUtils::insertLinks( const QString& string, bool *foundLinks )
     *foundLinks = found;
 
   return converted;
+}
+
+QgsStringReplacement::QgsStringReplacement( const QString& match, const QString& replacement, bool caseSensitive, bool wholeWordOnly )
+    : mMatch( match )
+    , mReplacement( replacement )
+    , mCaseSensitive( caseSensitive )
+    , mWholeWordOnly( wholeWordOnly )
+{
+  if ( mWholeWordOnly )
+    mRx = QRegExp( QString( "\\b%1\\b" ).arg( mMatch ),
+                   mCaseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive );
+}
+
+QString QgsStringReplacement::process( const QString& input ) const
+{
+  QString result = input;
+  if ( !mWholeWordOnly )
+  {
+    return result.replace( mMatch, mReplacement, mCaseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive );
+  }
+  else
+  {
+    return result.replace( mRx, mReplacement );
+  }
+}
+
+QgsStringMap QgsStringReplacement::properties() const
+{
+  QgsStringMap map;
+  map.insert( "match", mMatch );
+  map.insert( "replace", mReplacement );
+  map.insert( "caseSensitive", mCaseSensitive ? "1" : "0" );
+  map.insert( "wholeWord", mWholeWordOnly ? "1" : "0" );
+  return map;
+}
+
+QgsStringReplacement QgsStringReplacement::fromProperties( const QgsStringMap& properties )
+{
+  return QgsStringReplacement( properties.value( "match" ),
+                               properties.value( "replace" ),
+                               properties.value( "caseSensitive", "0" ) == "1",
+                               properties.value( "wholeWord", "0" ) == "1" );
+}
+
+QString QgsStringReplacementCollection::process( const QString& input ) const
+{
+  QString result = input;
+  Q_FOREACH ( const QgsStringReplacement& r, mReplacements )
+  {
+    result = r.process( result );
+  }
+  return result;
+}
+
+void QgsStringReplacementCollection::writeXml( QDomElement& elem, QDomDocument& doc ) const
+{
+  Q_FOREACH ( const QgsStringReplacement& r, mReplacements )
+  {
+    QgsStringMap props = r.properties();
+    QDomElement propEl = doc.createElement( "replacement" );
+    QgsStringMap::const_iterator it = props.constBegin();
+    for ( ; it != props.constEnd(); ++it )
+    {
+      propEl.setAttribute( it.key(), it.value() );
+    }
+    elem.appendChild( propEl );
+  }
+}
+
+void QgsStringReplacementCollection::readXml( const QDomElement& elem )
+{
+  mReplacements.clear();
+  QDomNodeList nodelist = elem.elementsByTagName( "replacement" );
+  for ( int i = 0;i < nodelist.count(); i++ )
+  {
+    QDomElement replacementElem = nodelist.at( i ).toElement();
+    QDomNamedNodeMap nodeMap = replacementElem.attributes();
+
+    QgsStringMap props;
+    for ( int j = 0; j < nodeMap.count(); ++j )
+    {
+      props.insert( nodeMap.item( j ).nodeName(), nodeMap.item( j ).nodeValue() );
+    }
+    mReplacements << QgsStringReplacement::fromProperties( props );
+  }
+
 }

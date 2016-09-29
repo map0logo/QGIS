@@ -227,9 +227,9 @@ void QgsRuleBasedRendererWidget::refineRule( int type )
 
 
   if ( type == 0 ) // categories
-    refineRuleCategoriesGui( indexlist );
+    refineRuleCategoriesGui();
   else if ( type == 1 ) // ranges
-    refineRuleRangesGui( indexlist );
+    refineRuleRangesGui();
   else // scales
     refineRuleScalesGui( indexlist );
 
@@ -255,23 +255,21 @@ void QgsRuleBasedRendererWidget::refineRuleScales()
   refineRule( 2 );
 }
 
-void QgsRuleBasedRendererWidget::refineRuleCategoriesGui( const QModelIndexList& )
+void QgsRuleBasedRendererWidget::refineRuleCategoriesGui()
 {
   QgsCategorizedSymbolRendererWidget* w = new QgsCategorizedSymbolRendererWidget( mLayer, mStyle, nullptr );
   w->setPanelTitle( tr( "Add categories to rules" ) );
   connect( w, SIGNAL( panelAccepted( QgsPanelWidget* ) ), this, SLOT( refineRuleCategoriesAccepted( QgsPanelWidget* ) ) );
-  w->setDockMode( this->dockMode() );
   w->setMapCanvas( mMapCanvas );
   openPanel( w );
 }
 
-void QgsRuleBasedRendererWidget::refineRuleRangesGui( const QModelIndexList& )
+void QgsRuleBasedRendererWidget::refineRuleRangesGui()
 {
   QgsGraduatedSymbolRendererWidget* w = new QgsGraduatedSymbolRendererWidget( mLayer, mStyle, nullptr );
   w->setPanelTitle( tr( "Add ranges to rules" ) );
   connect( w, SIGNAL( panelAccepted( QgsPanelWidget* ) ), this, SLOT( refineRuleRangesAccepted( QgsPanelWidget* ) ) );
   w->setMapCanvas( mMapCanvas );
-  w->setDockMode( this->dockMode() );
   openPanel( w );
 }
 
@@ -485,7 +483,10 @@ void QgsRuleBasedRendererWidget::refineRuleRangesAccepted( QgsPanelWidget *panel
 
 void QgsRuleBasedRendererWidget::ruleWidgetPanelAccepted( QgsPanelWidget *panel )
 {
-  QgsRendererRulePropsWidget* widget = qobject_cast<QgsRendererRulePropsWidget*>( panel );
+  QgsRendererRulePropsWidget *widget = qobject_cast<QgsRendererRulePropsWidget*>( panel );
+  if ( !widget )
+    return;
+
   widget->apply();
 
   // model should know about the change and emit dataChanged signal for the view
@@ -516,7 +517,7 @@ void QgsRuleBasedRendererWidget::countFeatures()
     countMap[rule].duplicateCount = 0;
   }
 
-  QgsFeatureIterator fit = mLayer->getFeatures( QgsFeatureRequest().setFlags( QgsFeatureRequest::NoGeometry ) );
+  QgsFeatureRequest req = QgsFeatureRequest().setFilterExpression( mRenderer->filter( mLayer->fields() ) );
 
   QgsRenderContext renderContext;
   renderContext.setRendererScale( 0 ); // ignore scale
@@ -537,8 +538,12 @@ void QgsRuleBasedRendererWidget::countFeatures()
   context << QgsExpressionContextUtils::layerScope( mLayer );
 
   renderContext.setExpressionContext( context );
+  req.setExpressionContext( context );
 
   mRenderer->startRender( renderContext, mLayer->fields() );
+
+  req.setSubsetOfAttributes( mRenderer->usedAttributes(), mLayer->fields() );
+  QgsFeatureIterator fit = mLayer->getFeatures( req );
 
   int nFeatures = mLayer->featureCount();
   QProgressDialog p( tr( "Calculating feature count." ), tr( "Abort" ), 0, nFeatures );
@@ -610,6 +615,8 @@ QgsRendererRulePropsWidget::QgsRendererRulePropsWidget( QgsRuleBasedRenderer::Ru
     , mMapCanvas( mapCanvas )
 {
   setupUi( this );
+  layout()->setMargin( 0 );
+  layout()->setContentsMargins( 0, 0, 0, 0 );
 
   editFilter->setText( mRule->filterExpression() );
   editFilter->setToolTip( mRule->filterExpression() );
@@ -651,8 +658,8 @@ QgsRendererRulePropsWidget::QgsRendererRulePropsWidget( QgsRuleBasedRenderer::Ru
   connect( btnExpressionBuilder, SIGNAL( clicked() ), this, SLOT( buildExpression() ) );
   connect( btnTestFilter, SIGNAL( clicked() ), this, SLOT( testFilter() ) );
   connect( editFilter, SIGNAL( textChanged( QString ) ), this, SIGNAL( widgetChanged() ) );
-  connect( editLabel, SIGNAL( textChanged( QString ) ), this, SIGNAL( widgetChanged() ) );
-  connect( editDescription, SIGNAL( textChanged( QString ) ), this, SIGNAL( widgetChanged() ) );
+  connect( editLabel, SIGNAL( editingFinished() ), this, SIGNAL( widgetChanged() ) );
+  connect( editDescription, SIGNAL( editingFinished() ), this, SIGNAL( widgetChanged() ) );
   connect( groupSymbol, SIGNAL( toggled( bool ) ), this, SIGNAL( widgetChanged() ) );
   connect( groupScale, SIGNAL( toggled( bool ) ), this, SIGNAL( widgetChanged() ) );
   connect( mScaleRangeWidget, SIGNAL( rangeChanged( double, double ) ), this, SIGNAL( widgetChanged() ) );
@@ -762,19 +769,18 @@ void QgsRendererRulePropsWidget::testFilter()
 
   QApplication::setOverrideCursor( Qt::WaitCursor );
 
-  QgsFeatureIterator fit = mLayer->getFeatures();
+  QgsFeatureRequest req = QgsFeatureRequest().setSubsetOfAttributes( QgsAttributeList() )
+                          .setFlags( QgsFeatureRequest::NoGeometry )
+                          .setFilterExpression( editFilter->text() )
+                          .setExpressionContext( context );
+
+  QgsFeatureIterator fit = mLayer->getFeatures( req );
 
   int count = 0;
   QgsFeature f;
   while ( fit.nextFeature( f ) )
   {
-    context.setFeature( f );
-
-    QVariant value = filter.evaluate( &context );
-    if ( value.toInt() != 0 )
-      count++;
-    if ( filter.hasEvalError() )
-      break;
+    count++;
   }
 
   QApplication::restoreOverrideCursor();

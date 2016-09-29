@@ -52,6 +52,16 @@ QgsRangeConfigDlg::QgsRangeConfigDlg( QgsVectorLayer* vl, int fieldIdx, QWidget 
   valuesLabel->setText( text );
 
   connect( rangeWidget, SIGNAL( currentIndexChanged( int ) ), this, SLOT( rangeWidgetChanged( int ) ) );
+
+  connect( minimumSpinBox, SIGNAL( valueChanged( int ) ), this, SIGNAL( changed() ) );
+  connect( maximumSpinBox, SIGNAL( valueChanged( int ) ), this, SIGNAL( changed() ) );
+  connect( stepSpinBox, SIGNAL( valueChanged( int ) ), this, SIGNAL( changed() ) );
+  connect( minimumDoubleSpinBox, SIGNAL( valueChanged( double ) ), this, SIGNAL( changed() ) );
+  connect( maximumDoubleSpinBox, SIGNAL( valueChanged( double ) ), this, SIGNAL( changed() ) );
+  connect( stepDoubleSpinBox, SIGNAL( valueChanged( double ) ), this, SIGNAL( changed() ) );
+  connect( rangeWidget, SIGNAL( currentIndexChanged( int ) ), this, SIGNAL( changed() ) );
+  connect( allowNullCheckBox, SIGNAL( toggled( bool ) ), this, SIGNAL( changed() ) );
+  connect( suffixLineEdit, SIGNAL( textChanged( QString ) ), this, SIGNAL( changed() ) );
 }
 
 QgsEditorWidgetConfig QgsRangeConfigDlg::config()
@@ -77,7 +87,7 @@ QgsEditorWidgetConfig QgsRangeConfigDlg::config()
       break;
   }
 
-  cfg.insert( "Style", rangeWidget->itemData( rangeWidget->currentIndex() ).toString() );
+  cfg.insert( "Style", rangeWidget->currentData().toString() );
   cfg.insert( "AllowNull", allowNullCheckBox->isChecked() );
 
   if ( suffixLineEdit->text() != "" )
@@ -90,12 +100,12 @@ QgsEditorWidgetConfig QgsRangeConfigDlg::config()
 
 void QgsRangeConfigDlg::setConfig( const QgsEditorWidgetConfig& config )
 {
-  minimumDoubleSpinBox->setValue( config.value( "Min", 0.0 ).toDouble() );
-  maximumDoubleSpinBox->setValue( config.value( "Max", 5.0 ).toDouble() );
+  minimumDoubleSpinBox->setValue( config.value( "Min", -std::numeric_limits<double>::max() ).toDouble() );
+  maximumDoubleSpinBox->setValue( config.value( "Max", std::numeric_limits<double>::max() ).toDouble() );
   stepDoubleSpinBox->setValue( config.value( "Step", 1.0 ).toDouble() );
 
-  minimumSpinBox->setValue( config.value( "Min", 0 ).toInt() );
-  maximumSpinBox->setValue( config.value( "Max", 5 ).toInt() );
+  minimumSpinBox->setValue( config.value( "Min", std::numeric_limits<int>::min() ).toInt() );
+  maximumSpinBox->setValue( config.value( "Max", std::numeric_limits<int>::max() ).toInt() );
   stepSpinBox->setValue( config.value( "Step", 1 ).toInt() );
 
   rangeWidget->setCurrentIndex( rangeWidget->findData( config.value( "Style", "SpinBox" ) ) );

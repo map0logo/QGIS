@@ -18,6 +18,9 @@ email                : lrssvtml (at) gmail (dot) com
  ***************************************************************************/
 Some portions of code were taken from https://code.google.com/p/pydee/
 """
+from __future__ import print_function
+from builtins import str
+from builtins import range
 from qgis.PyQt.QtCore import Qt, QObject, QEvent, QSettings, QCoreApplication, QFileInfo, QSize
 from qgis.PyQt.QtGui import QFont, QFontMetrics, QColor, QKeySequence, QCursor
 from qgis.PyQt.QtWidgets import QShortcut, QMenu, QApplication, QWidget, QGridLayout, QSpacerItem, QSizePolicy, QFileDialog, QTabWidget, QTreeWidgetItem, QFrame, QLabel, QToolButton, QMessageBox
@@ -47,7 +50,7 @@ class KeyFilter(QObject):
         self.window = window
         self.tab = tab
         self._handlers = {}
-        for shortcut, handler in KeyFilter.SHORTCUTS.items():
+        for shortcut, handler in list(KeyFilter.SHORTCUTS.items()):
             modifiers = shortcut[0]
             if not isinstance(modifiers, list):
                 modifiers = [modifiers]
@@ -294,9 +297,9 @@ class Editor(QsciScintilla):
         iconFind = QgsApplication.getThemeIcon("console/iconSearchEditorConsole.png")
         iconSyntaxCk = QgsApplication.getThemeIcon("console/iconSyntaxErrorConsole.png")
         iconObjInsp = QgsApplication.getThemeIcon("console/iconClassBrowserConsole.png")
-        iconCut = QgsApplication.getThemeIcon("mActionEditCut.png")
-        iconCopy = QgsApplication.getThemeIcon("mActionEditCopy.png")
-        iconPaste = QgsApplication.getThemeIcon("mActionEditPaste.png")
+        iconCut = QgsApplication.getThemeIcon("mActionEditCut.svg")
+        iconCopy = QgsApplication.getThemeIcon("mActionEditCopy.svg")
+        iconPaste = QgsApplication.getThemeIcon("mActionEditPaste.svg")
         menu.addAction(
             QCoreApplication.translate("PythonConsole", "Hide Editor"),
             self.hideEditor)
@@ -594,7 +597,7 @@ class Editor(QsciScintilla):
                 tmpFile = self.createTempFile()
                 filename = tmpFile
 
-            self.parent.pc.shell.runCommand(u"execfile(u'{0}'.encode('{1}'))"
+            self.parent.pc.shell.runCommand(u"exec(open(u'{0}'.encode('{1}')).read())"
                                             .format(filename.replace("\\", "/"), sys.getfilesystemencoding()))
 
     def runSelectedCode(self):
@@ -802,10 +805,10 @@ class EditorTab(QWidget):
         if self.path is None:
             saveTr = QCoreApplication.translate('PythonConsole',
                                                 'Python Console: Save file')
-            self.path = QFileDialog().getSaveFileName(self,
-                                                      saveTr,
-                                                      self.tw.tabText(index) + '.py',
-                                                      "Script file (*.py)")
+            self.path, filter = QFileDialog().getSaveFileName(self,
+                                                              saveTr,
+                                                              self.tw.tabText(index) + '.py',
+                                                              "Script file (*.py)")
             # If the user didn't select a file, abort the save operation
             if len(self.path) == 0:
                 self.path = None
@@ -899,7 +902,7 @@ class EditorTabWidget(QTabWidget):
         toolTipClose = QCoreApplication.translate("PythonConsole",
                                                   "Close")
         self.clButton.setToolTip(toolTipClose)
-        self.clButton.setIcon(QgsApplication.getThemeIcon("mIconClose.png"))
+        self.clButton.setIcon(QgsApplication.getThemeIcon("/mIconClose.svg"))
         self.clButton.setIconSize(QSize(18, 18))
         self.clButton.setCursor(Qt.PointingHandCursor)
         self.clButton.setStyleSheet('QToolButton:hover{border: none } \
@@ -1190,7 +1193,7 @@ class EditorTabWidget(QTabWidget):
                             for superClass in class_data.super:
                                 if superClass == 'object':
                                     continue
-                                if isinstance(superClass, basestring):
+                                if isinstance(superClass, str):
                                     superClassName.append(superClass)
                                 else:
                                     superClassName.append(superClass.name)

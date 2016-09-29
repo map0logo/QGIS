@@ -29,7 +29,7 @@
 
 class QgsExpression;
 class QgsSymbolLayer;
-class QgsVectorColorRamp;
+class QgsColorRamp;
 
 typedef QMap<QString, QString> QgsStringMap;
 typedef QMap<QString, QgsSymbol* > QgsSymbolMap;
@@ -138,13 +138,24 @@ class CORE_EXPORT QgsSymbolLayerUtils
      */
     static QIcon symbolLayerPreviewIcon( QgsSymbolLayer* layer, QgsUnitTypes::RenderUnit u, QSize size, const QgsMapUnitScale& scale = QgsMapUnitScale() );
 
-    static QIcon colorRampPreviewIcon( QgsVectorColorRamp* ramp, QSize size );
+    /** Returns a icon preview for a color ramp.
+     * @param ramp color ramp
+     * @param size target icon size
+     * @see colorRampPreviewPixmap()
+     */
+    static QIcon colorRampPreviewIcon( QgsColorRamp* ramp, QSize size );
+
+    /** Returns a pixmap preview for a color ramp.
+     * @param ramp color ramp
+     * @param size target pixmap size
+     * @see colorRampPreviewIcon()
+     */
+    static QPixmap colorRampPreviewPixmap( QgsColorRamp* ramp, QSize size );
 
     static void drawStippledBackground( QPainter* painter, QRect rect );
 
     //! @note customContext parameter added in 2.6
     static QPixmap symbolPreviewPixmap( QgsSymbol* symbol, QSize size, QgsRenderContext* customContext = nullptr );
-    static QPixmap colorRampPreviewPixmap( QgsVectorColorRamp* ramp, QSize size );
 
     /** Returns the maximum estimated bleed for the symbol */
     static double estimateMaxSymbolBleed( QgsSymbol* symbol );
@@ -227,17 +238,9 @@ class CORE_EXPORT QgsSymbolLayerUtils
                                         QString &path, QString &mime,
                                         QColor &color, double &size );
 
-    /** @deprecated Use wellKnownMarkerToSld( QDomDocument &doc, QDomElement &element, QString name, QColor color, QColor borderColor, Qt::PenStyle borderStyle, double borderWidth, double size ) instead */
-    Q_DECL_DEPRECATED static void wellKnownMarkerToSld( QDomDocument &doc, QDomElement &element,
-        const QString& name, const QColor& color, const QColor& borderColor = QColor(),
-        double borderWidth = -1, double size = -1 );
     static void wellKnownMarkerToSld( QDomDocument &doc, QDomElement &element,
                                       const QString& name, const QColor& color, const QColor& borderColor, Qt::PenStyle borderStyle,
                                       double borderWidth = -1, double size = -1 );
-    /** @deprecated Use wellKnownMarkerFromSld( QDomElement &element, QString &name, QColor &color, QColor &borderColor, Qt::PenStyle &borderStyle, double &borderWidth, double &size ) instead */
-    Q_DECL_DEPRECATED static bool wellKnownMarkerFromSld( QDomElement &element,
-        QString &name, QColor &color, QColor &borderColor,
-        double &borderWidth, double &size );
 
     //! @note available in python as wellKnownMarkerFromSld2
     static bool wellKnownMarkerFromSld( QDomElement &element,
@@ -280,6 +283,14 @@ class CORE_EXPORT QgsSymbolLayerUtils
     static void createGeometryElement( QDomDocument &doc, QDomElement &element, const QString& geomFunc );
     static bool geometryFromSldElement( QDomElement &element, QString &geomFunc );
 
+    /**
+     * Creates a OGC Expression element based on the provided function expression
+     * @param doc The document owning the element
+     * @param element The element parent
+     * @param function The expression to be encoded
+     * @return
+     */
+    static bool createExpressionElement( QDomDocument &doc, QDomElement &element, const QString& function );
     static bool createFunctionElement( QDomDocument &doc, QDomElement &element, const QString& function );
     static bool functionFromSldElement( QDomElement &element, QString &function );
 
@@ -297,8 +308,21 @@ class CORE_EXPORT QgsSymbolLayerUtils
 
     static void clearSymbolMap( QgsSymbolMap& symbols );
 
-    static QgsVectorColorRamp* loadColorRamp( QDomElement& element );
-    static QDomElement saveColorRamp( const QString& name, QgsVectorColorRamp* ramp, QDomDocument& doc );
+    /** Creates a color ramp from the settings encoded in an XML element
+     * @param element DOM element
+     * @returns new color ramp. Caller takes responsiblity for deleting the returned value.
+     * @see saveColorRamp()
+     */
+    static QgsColorRamp* loadColorRamp( QDomElement& element );
+
+    /** Encodes a color ramp's settings to an XML element
+     * @param name name of ramp
+     * @param ramp color ramp to save
+     * @param doc XML document
+     * @returns DOM element representing state of color ramp
+     * @see loadColorRamp()
+     */
+    static QDomElement saveColorRamp( const QString& name, QgsColorRamp* ramp, QDomDocument& doc );
 
     /**
      * Returns a friendly display name for a color
@@ -500,12 +524,40 @@ class CORE_EXPORT QgsSymbolLayerUtils
      */
     static QList<double> prettyBreaks( double minimum, double maximum, int classes );
 
+    /** Rescales the given size based on the uomScale found in the props, if any is found, otherwise
+     *  returns the value un-modified
+     * @note added in 3.0
+     */
+    static double rescaleUom( double size, QgsUnitTypes::RenderUnit unit, const QgsStringMap& props );
+
+    /** Rescales the given point based on the uomScale found in the props, if any is found, otherwise
+     *  returns a copy of the original point
+     * @note added in 3.0
+     */
+    static QPointF rescaleUom( const QPointF& point, QgsUnitTypes::RenderUnit unit, const QgsStringMap& props );
+
+    /** Rescales the given array based on the uomScale found in the props, if any is found, otherwise
+     *  returns a copy of the original point
+     * @note added in 3.0
+     */
+    static QVector<qreal> rescaleUom( const QVector<qreal>& array, QgsUnitTypes::RenderUnit unit, const QgsStringMap& props );
+
+    /**
+     * Checks if the properties contain scaleMinDenom and scaleMaxDenom, if available, they are added into the SE Rule element
+     * @note added in 3.0
+     */
+    static void applyScaleDependency( QDomDocument& doc, QDomElement& ruleElem, QgsStringMap& props );
+
+    /**
+      * Merges the local scale limits, if any, with the ones already in the map, if any
+      * @note added in 3.0
+      */
+    static void mergeScaleDependencies( int mScaleMinDenom, int mScaleMaxDenom, QgsStringMap& props );
+
 };
 
 class QPolygonF;
 
-//! @deprecated since 2.4 - calculate line shifted by a specified distance
-QList<QPolygonF> offsetLine( const QPolygonF& polyline, double dist );
 //! calculate geometry shifted by a specified distance
 QList<QPolygonF> offsetLine( QPolygonF polyline, double dist, QgsWkbTypes::GeometryType geometryType );
 

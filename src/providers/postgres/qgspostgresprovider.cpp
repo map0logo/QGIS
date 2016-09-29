@@ -23,12 +23,11 @@
 #include <qgsmessagelog.h>
 #include <qgsrectangle.h>
 #include <qgscoordinatereferencesystem.h>
+#include <qgseditformconfig.h>
 
 #include <QMessageBox>
 
 #include "qgsvectorlayerimport.h"
-#include "qgsprovidercountcalcevent.h"
-#include "qgsproviderextentcalcevent.h"
 #include "qgspostgresprovider.h"
 #include "qgspostgresconn.h"
 #include "qgspostgresconnpool.h"
@@ -40,6 +39,7 @@
 
 const QString POSTGRES_KEY = "postgres";
 const QString POSTGRES_DESCRIPTION = "PostgreSQL/PostGIS data provider";
+static const QString EDITOR_WIDGET_STYLES_TABLE = "qgis_editor_widget_styles";
 
 inline qint64 PKINT2FID( qint32 x )
 {
@@ -49,6 +49,12 @@ inline qint64 PKINT2FID( qint32 x )
 inline qint32 FID2PKINT( qint64 x )
 {
   return QgsPostgresUtils::fid_to_int32pk( x );
+}
+
+static bool tableExists( QgsPostgresConn& conn, const QString& name )
+{
+  QgsPostgresResult res( conn.PQexec( "SELECT COUNT(*) FROM information_schema.tables WHERE table_name=" + QgsPostgresConn::quotedValue( name ) ) );
+  return res.PQgetvalue( 0, 0 ).toInt() > 0;
 }
 
 QgsPostgresPrimaryKeyType
@@ -212,6 +218,13 @@ QgsPostgresProvider::QgsPostgresProvider( QString const & uri )
   << QgsVectorDataProvider::NativeType( tr( "Date" ), "date", QVariant::Date, -1, -1, -1, -1 )
   << QgsVectorDataProvider::NativeType( tr( "Time" ), "time", QVariant::Time, -1, -1, -1, -1 )
   << QgsVectorDataProvider::NativeType( tr( "Date & Time" ), "timestamp without time zone", QVariant::DateTime, -1, -1, -1, -1 )
+
+  // complex types
+  << QgsVectorDataProvider::NativeType( tr( "Map" ), "hstore", QVariant::Map, -1, -1, -1, -1, QVariant::String )
+  << QgsVectorDataProvider::NativeType( tr( "Array of number (integer - 32bit)" ), "int4[]", QVariant::List, -1, -1, -1, -1, QVariant::Int )
+  << QgsVectorDataProvider::NativeType( tr( "Array of number (integer - 64bit)" ), "int8[]", QVariant::List, -1, -1, -1, -1, QVariant::LongLong )
+  << QgsVectorDataProvider::NativeType( tr( "Array of number (double)" ), "double precision[]", QVariant::List, -1, -1, -1, -1, QVariant::Double )
+  << QgsVectorDataProvider::NativeType( tr( "Array of text" ), "text[]", QVariant::StringList, -1, -1, -1, -1, QVariant::String )
   ;
 
   QString key;
@@ -317,91 +330,6 @@ QString QgsPostgresProvider::storageType() const
 {
   return "PostgreSQL database with PostGIS extension";
 }
-
-// Qt5 has that built in
-// ... BUT it does not behave exactly the same way as our implementation
-// (e.g. comparison of QVariantList does not work)
-#if QT_VERSION < 0x050000
-static bool operator<( const QVariant &a, const QVariant &b )
-{
-  // invalid < NULL < any value
-  if ( !a.isValid() )
-    return b.isValid();
-  else if ( a.isNull() )
-    return b.isValid() && !b.isNull();
-  else if ( !b.isValid() || b.isNull() )
-    return false;
-
-  if ( a.type() == b.type() )
-  {
-    switch ( a.type() )
-    {
-      case QVariant::Int:
-      case QVariant::Char:
-        return a.toInt() < b.toInt();
-
-      case QVariant::Double:
-        return a.toDouble() < b.toDouble();
-
-      case QVariant::LongLong:
-        return a.toLongLong() < b.toLongLong();
-
-      case QVariant::List:
-      {
-        const QList<QVariant> &al = a.toList();
-        const QList<QVariant> &bl = b.toList();
-
-        int i, n = qMin( al.size(), bl.size() );
-        for ( i = 0; i < n && al[i].type() == bl[i].type() && al[i].isNull() == bl[i].isNull() && al[i] == bl[i]; i++ )
-          ;
-
-        if ( i == n )
-          return al.size() < bl.size();
-        else
-          return al[i] < bl[i];
-      }
-
-      case QVariant::StringList:
-      {
-        const QStringList &al = a.toStringList();
-        const QStringList &bl = b.toStringList();
-
-        int i, n = qMin( al.size(), bl.size() );
-        for ( i = 0; i < n && al[i] == bl[i]; i++ )
-          ;
-
-        if ( i == n )
-          return al.size() < bl.size();
-        else
-          return al[i] < bl[i];
-      }
-
-      case QVariant::Date:
-        return a.toDate() < b.toDate();
-
-      case QVariant::Time:
-        return a.toTime() < b.toTime();
-
-      case QVariant::DateTime:
-        return a.toDateTime() < b.toDateTime();
-
-      case QVariant::Bool:
-        return a.toBool() < b.toBool();
-
-      case QVariant::UInt:
-        return a.toUInt() < b.toUInt();
-
-      case QVariant::ULongLong:
-        return a.toULongLong() < b.toULongLong();
-
-      default:
-        break;
-    }
-  }
-
-  return a.canConvert( QVariant::String ) && b.canConvert( QVariant::String ) && a.toString() < b.toString();
-}
-#endif
 
 #if QT_VERSION >= 0x050000 && QT_VERSION < 0x050600
 #include <algorithm>
@@ -872,6 +800,7 @@ bool QgsPostgresProvider::loadFields()
     QString fieldComment = descrMap[tableoid][attnum];
 
     QVariant::Type fieldType;
+    QVariant::Type fieldSubType = QVariant::Invalid;
 
     if ( fieldTType == "b" )
     {
@@ -960,7 +889,6 @@ bool QgsPostgresProvider::loadFields()
       else if ( fieldTypeName == "text" ||
                 fieldTypeName == "bool" ||
                 fieldTypeName == "geometry" ||
-                fieldTypeName == "hstore" ||
                 fieldTypeName == "inet" ||
                 fieldTypeName == "money" ||
                 fieldTypeName == "ltree" ||
@@ -1011,6 +939,12 @@ bool QgsPostgresProvider::loadFields()
           fieldPrec = -1;
         }
       }
+      else if ( fieldTypeName == "hstore" )
+      {
+        fieldType = QVariant::Map;
+        fieldSubType = QVariant::String;
+        fieldSize = -1;
+      }
       else
       {
         QgsMessageLog::logMessage( tr( "Field %1 ignored, because of unsupported type %2" ).arg( fieldName, fieldTypeName ), tr( "PostGIS" ) );
@@ -1020,7 +954,8 @@ bool QgsPostgresProvider::loadFields()
       if ( isArray )
       {
         fieldTypeName = '_' + fieldTypeName;
-        fieldType = QVariant::String;
+        fieldSubType = fieldType;
+        fieldType = ( fieldType == QVariant::String ? QVariant::StringList : QVariant::List );
         fieldSize = -1;
       }
     }
@@ -1052,10 +987,49 @@ bool QgsPostgresProvider::loadFields()
 
     mAttrPalIndexName.insert( i, fieldName );
     mDefaultValues.insert( mAttributeFields.size(), defValMap[tableoid][attnum] );
-    mAttributeFields.append( QgsField( fieldName, fieldType, fieldTypeName, fieldSize, fieldPrec, fieldComment ) );
+    mAttributeFields.append( QgsField( fieldName, fieldType, fieldTypeName, fieldSize, fieldPrec, fieldComment, fieldSubType ) );
   }
 
+  setEditorWidgets();
+
   return true;
+}
+
+void QgsPostgresProvider::setEditorWidgets()
+{
+  if ( tableExists( *connectionRO(), EDITOR_WIDGET_STYLES_TABLE ) )
+  {
+    for ( int i = 0; i < mAttributeFields.count(); ++i )
+    {
+      // CREATE TABLE qgis_editor_widget_styles (schema_name TEXT NOT NULL, table_name TEXT NOT NULL, field_name TEXT NOT NULL,
+      //                                         type TEXT NOT NULL, config TEXT,
+      //                                         PRIMARY KEY(schema_name, table_name, field_name));
+      QgsField& field = mAttributeFields[i];
+      const QString sql = QString( "SELECT type, config FROM %1 WHERE schema_name = %2 and table_name = %3 and field_name = %4 LIMIT 1" ).
+                          arg( EDITOR_WIDGET_STYLES_TABLE, quotedValue( mSchemaName ), quotedValue( mTableName ), quotedValue( field.name() ) );
+      QgsPostgresResult result( connectionRO()->PQexec( sql ) );
+      for ( int i = 0; i < result.PQntuples(); ++i )
+      {
+        const QString type = result.PQgetvalue( i, 0 );
+        QgsEditorWidgetConfig config;
+        if ( !result.PQgetisnull( i, 1 ) ) // Can be null and it's OK
+        {
+          const QString configTxt = result.PQgetvalue( i, 1 );
+          QDomDocument doc;
+          if ( doc.setContent( configTxt ) )
+          {
+            config = QgsEditFormConfig::parseEditorWidgetConfig( doc.documentElement() );
+          }
+          else
+          {
+            QgsMessageLog::logMessage( tr( "Cannot parse widget configuration for field %1.%2.%3\n" ).arg( mSchemaName, mTableName, field.name() ), tr( "PostGIS" ) );
+          }
+        }
+
+        field.setEditorWidgetSetup( QgsEditorWidgetSetup( type, config ) );
+      }
+    }
+  }
 }
 
 bool QgsPostgresProvider::hasSufficientPermsAndCapabilities()
@@ -1515,7 +1489,7 @@ QVariant QgsPostgresProvider::minimumValue( int index ) const
     sql = QString( "SELECT %1 FROM (%2) foo" ).arg( connectionRO()->fieldExpression( fld ), sql );
 
     QgsPostgresResult rmin( connectionRO()->PQexec( sql ) );
-    return convertValue( fld.type(), rmin.PQgetvalue( 0, 0 ) );
+    return convertValue( fld.type(), fld.subType(), rmin.PQgetvalue( 0, 0 ) );
   }
   catch ( PGFieldNotFound )
   {
@@ -1554,7 +1528,7 @@ void QgsPostgresProvider::uniqueValues( int index, QList<QVariant> &uniqueValues
     if ( res.PQresultStatus() == PGRES_TUPLES_OK )
     {
       for ( int i = 0; i < res.PQntuples(); i++ )
-        uniqueValues.append( convertValue( fld.type(), res.PQgetvalue( i, 0 ) ) );
+        uniqueValues.append( convertValue( fld.type(), fld.subType(), res.PQgetvalue( i, 0 ) ) );
     }
   }
   catch ( PGFieldNotFound )
@@ -1691,7 +1665,7 @@ QVariant QgsPostgresProvider::maximumValue( int index ) const
 
     QgsPostgresResult rmax( connectionRO()->PQexec( sql ) );
 
-    return convertValue( fld.type(), rmax.PQgetvalue( 0, 0 ) );
+    return convertValue( fld.type(), fld.subType(), rmax.PQgetvalue( 0, 0 ) );
   }
   catch ( PGFieldNotFound )
   {
@@ -1715,7 +1689,7 @@ QVariant QgsPostgresProvider::defaultValue( int fieldId ) const
 
     QgsPostgresResult res( connectionRO()->PQexec( QString( "SELECT %1" ).arg( defVal.toString() ) ) );
 
-    return convertValue( fld.type(), res.PQgetvalue( 0, 0 ) );
+    return convertValue( fld.type(), fld.subType(), res.PQgetvalue( 0, 0 ) );
   }
 
   return defVal;
@@ -1939,6 +1913,7 @@ bool QgsPostgresProvider::addFeatures( QgsFeatureList &flist )
                     .arg( delim,
                           quotedValue( v.toString() ) );
         }
+        //TODO: convert arrays and hstore to native types
         else
         {
           values += delim + quotedValue( v );
@@ -2014,7 +1989,7 @@ bool QgsPostgresProvider::addFeatures( QgsFeatureList &flist )
         {
           QgsField fld = field( attrIdx );
           v = paramValue( defaultValues[ i ], defaultValues[ i ] );
-          features->setAttribute( attrIdx, convertValue( fld.type(), v ) );
+          features->setAttribute( attrIdx, convertValue( fld.type(), fld.subType(), v ) );
         }
         else
         {
@@ -2023,7 +1998,7 @@ bool QgsPostgresProvider::addFeatures( QgsFeatureList &flist )
           if ( v != value.toString() )
           {
             QgsField fld = field( attrIdx );
-            features->setAttribute( attrIdx, convertValue( fld.type(), v ) );
+            features->setAttribute( attrIdx, convertValue( fld.type(), fld.subType(), v ) );
           }
         }
 
@@ -2036,8 +2011,9 @@ bool QgsPostgresProvider::addFeatures( QgsFeatureList &flist )
       {
         for ( int i = 0; i < mPrimaryKeyAttrs.size(); ++i )
         {
-          int idx = mPrimaryKeyAttrs.at( i );
-          features->setAttribute( idx, convertValue( mAttributeFields.at( idx ).type(), result.PQgetvalue( 0, i ) ) );
+          const int idx = mPrimaryKeyAttrs.at( i );
+          const QgsField fld = mAttributeFields.at( idx );
+          features->setAttribute( idx, convertValue( fld.type(), fld.subType(), result.PQgetvalue( 0, i ) ) );
         }
       }
       else if ( result.PQresultStatus() != PGRES_COMMAND_OK )
@@ -2103,7 +2079,10 @@ bool QgsPostgresProvider::deleteFeatures( const QgsFeatureIds & id )
   bool returnvalue = true;
 
   if ( mIsQuery )
+  {
+    QgsDebugMsg( "Cannot delete features (is a query)" );
     return false;
+  }
 
   QgsPostgresConn* conn = connectionRW();
   if ( !conn )
@@ -3421,6 +3400,25 @@ bool QgsPostgresProvider::convertField( QgsField &field, const QMap<QString, QVa
       fieldPrec = 0;
       break;
 
+    case QVariant::Map:
+      fieldType = "hstore";
+      fieldPrec = -1;
+      break;
+
+    case QVariant::StringList:
+      fieldType = "_text";
+      fieldPrec = -1;
+      break;
+
+    case QVariant::List:
+    {
+      QgsField sub( "", field.subType(), "", fieldSize, fieldPrec );
+      if ( !convertField( sub, nullptr ) ) return false;
+      fieldType = "_" + sub.typeName();
+      fieldPrec = -1;
+      break;
+    }
+
     case QVariant::Double:
       if ( fieldPrec > 0 )
       {
@@ -3783,6 +3781,132 @@ QString  QgsPostgresProvider::description() const
   return tr( "PostgreSQL/PostGIS provider\n%1\nPostGIS %2" ).arg( pgVersion, postgisVersion );
 } //  QgsPostgresProvider::description()
 
+static void jumpSpace( const QString& txt, int& i )
+{
+  while ( i < txt.length() && txt.at( i ).isSpace() ) ++i;
+}
+
+static QString getNextString( const QString& txt, int& i, const QString& sep )
+{
+  jumpSpace( txt, i );
+  QString cur = txt.mid( i );
+  if ( cur.startsWith( '"' ) )
+  {
+    QRegExp stringRe( "^\"((?:\\\\.|[^\"\\\\])*)\".*" );
+    if ( !stringRe.exactMatch( cur ) )
+    {
+      QgsLogger::warning( "Cannot find end of double quoted string: " + txt );
+      return QString::null;
+    }
+    i += stringRe.cap( 1 ).length() + 2;
+    jumpSpace( txt, i );
+    if ( !txt.mid( i ).startsWith( sep ) && i < txt.length() )
+    {
+      QgsLogger::warning( "Cannot find separator: " + txt.mid( i ) );
+      return QString::null;
+    }
+    i += sep.length();
+    return stringRe.cap( 1 ).replace( "\\\"", "\"" ).replace( "\\\\", "\\" );
+  }
+  else
+  {
+    QString ret;
+    int sepPos = cur.indexOf( sep );
+    if ( sepPos < 0 )
+    {
+      i += cur.length();
+      return cur.trimmed();
+    }
+    i += sepPos + sep.length();
+    return cur.left( sepPos ).trimmed();
+  }
+}
+
+static QVariant parseHstore( const QString& txt )
+{
+  QVariantMap result;
+  int i = 0;
+  while ( i < txt.length() )
+  {
+    QString key = getNextString( txt, i, "=>" );
+    QString value = getNextString( txt, i, "," );
+    if ( key.isNull() || value.isNull() )
+    {
+      QgsLogger::warning( "Error parsing hstore: " + txt );
+      break;
+    }
+    result.insert( key, value );
+  }
+
+  return result;
+}
+
+static QVariant parseOtherArray( const QString& txt, QVariant::Type subType )
+{
+  int i = 0;
+  QVariantList result;
+  while ( i < txt.length() )
+  {
+    const QString value = getNextString( txt, i, "," );
+    if ( value.isNull() )
+    {
+      QgsLogger::warning( "Error parsing array: " + txt );
+      break;
+    }
+    result.append( QgsPostgresProvider::convertValue( subType, QVariant::Invalid, value ) );
+  }
+  return result;
+}
+
+static QVariant parseStringArray( const QString& txt )
+{
+  int i = 0;
+  QStringList result;
+  while ( i < txt.length() )
+  {
+    const QString value = getNextString( txt, i, "," );
+    if ( value.isNull() )
+    {
+      QgsLogger::warning( "Error parsing array: " + txt );
+      break;
+    }
+    result.append( value );
+  }
+  return result;
+}
+
+static QVariant parseArray( const QString& txt, QVariant::Type type, QVariant::Type subType )
+{
+  if ( !txt.startsWith( '{' ) || !txt.endsWith( '}' ) )
+  {
+    QgsLogger::warning( "Error parsing array, missing curly braces: " + txt );
+    return QVariant( type );
+  }
+  QString inner = txt.mid( 1, txt.length() - 2 );
+  if ( type == QVariant::StringList )
+    return parseStringArray( inner );
+  else
+    return parseOtherArray( inner, subType );
+}
+
+QVariant QgsPostgresProvider::convertValue( QVariant::Type type, QVariant::Type subType, const QString& value )
+{
+  switch ( type )
+  {
+    case QVariant::Map:
+      return parseHstore( value );
+    case QVariant::StringList:
+    case QVariant::List:
+      return parseArray( value, type, subType );
+    default:
+    {
+      QVariant v( value );
+      if ( !v.convert( type ) || value.isNull() ) return QVariant( type );
+      return v;
+    }
+  }
+}
+
 /**
  * Class factory to return a pointer to a newly created
  * QgsPostgresProvider object
@@ -3967,24 +4091,23 @@ QGISEXTERN bool saveStyle( const QString& uri, const QString& qmlStyle, const QS
     return false;
   }
 
-  QgsPostgresResult res( conn->PQexec( "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='layer_styles'" ) );
-  if ( res.PQgetvalue( 0, 0 ).toInt() == 0 )
+  if ( !tableExists( *conn, "layer_styles" ) )
   {
-    res = conn->PQexec( "CREATE TABLE layer_styles("
-                        "id SERIAL PRIMARY KEY"
-                        ",f_table_catalog varchar"
-                        ",f_table_schema varchar"
-                        ",f_table_name varchar"
-                        ",f_geometry_column varchar"
-                        ",styleName varchar(30)"
-                        ",styleQML xml"
-                        ",styleSLD xml"
-                        ",useAsDefault boolean"
-                        ",description text"
-                        ",owner varchar(30)"
-                        ",ui xml"
-                        ",update_time timestamp DEFAULT CURRENT_TIMESTAMP"
-                        ")" );
+    QgsPostgresResult res( conn->PQexec( "CREATE TABLE layer_styles("
+                                         "id SERIAL PRIMARY KEY"
+                                         ",f_table_catalog varchar"
+                                         ",f_table_schema varchar"
+                                         ",f_table_name varchar"
+                                         ",f_geometry_column varchar"
+                                         ",styleName varchar(30)"
+                                         ",styleQML xml"
+                                         ",styleSLD xml"
+                                         ",useAsDefault boolean"
+                                         ",description text"
+                                         ",owner varchar(30)"
+                                         ",ui xml"
+                                         ",update_time timestamp DEFAULT CURRENT_TIMESTAMP"
+                                         ")" ) );
     if ( res.PQresultStatus() != PGRES_COMMAND_OK )
     {
       errCause = QObject::tr( "Unable to save layer style. It's not possible to create the destination table on the database. Maybe this is due to table permissions (user=%1). Please contact your database admin" ).arg( dsUri.username() );
@@ -4038,7 +4161,7 @@ QGISEXTERN bool saveStyle( const QString& uri, const QString& qmlStyle, const QS
                        .arg( QgsPostgresConn::quotedValue( dsUri.geometryColumn() ) )
                        .arg( QgsPostgresConn::quotedValue( styleName.isEmpty() ? dsUri.table() : styleName ) );
 
-  res = conn->PQexec( checkQuery );
+  QgsPostgresResult res( conn->PQexec( checkQuery ) );
   if ( res.PQntuples() > 0 )
   {
     if ( QMessageBox::question( nullptr, QObject::tr( "Save style in database" ),
@@ -4113,8 +4236,7 @@ QGISEXTERN QString loadStyle( const QString& uri, QString& errCause )
     return "";
   }
 
-  QgsPostgresResult result( conn->PQexec( "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='layer_styles'" ) );
-  if ( result.PQgetvalue( 0, 0 ).toInt() == 0 )
+  if ( !tableExists( *conn, "layer_styles" ) )
   {
     return "";
   }
@@ -4132,7 +4254,7 @@ QGISEXTERN QString loadStyle( const QString& uri, QString& errCause )
                            .arg( QgsPostgresConn::quotedValue( dsUri.table() ) )
                            .arg( QgsPostgresConn::quotedValue( dsUri.geometryColumn() ) );
 
-  result = conn->PQexec( selectQmlQuery );
+  QgsPostgresResult result( conn->PQexec( selectQmlQuery ) );
 
   QString style = result.PQntuples() == 1 ? result.PQgetvalue( 0, 0 ) : "";
   conn->unref();

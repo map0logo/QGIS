@@ -14,9 +14,9 @@ class QgsHeatmapRenderer : QgsFeatureRenderer
     virtual bool renderFeature( QgsFeature& feature, QgsRenderContext& context, int layer = -1, bool selected = false, bool drawVertexMarker = false );
     virtual void stopRender( QgsRenderContext& context );
     //! @note symbolForFeature2 in python bindings
-    virtual QgsSymbol* symbolForFeature( QgsFeature& feature, QgsRenderContext& context ) /PyName=symbolForFeature2/;
+    virtual QgsSymbol* symbolForFeature( QgsFeature& feature, QgsRenderContext& context );
     //! @note symbol2 in python bindings
-    virtual QgsSymbolList symbols( QgsRenderContext& context ) /PyName=symbols2/;
+    virtual QgsSymbolList symbols( QgsRenderContext& context );
     virtual QString dump() const;
     virtual QList<QString> usedAttributes();
     static QgsFeatureRenderer* create( QDomElement& element ) /Factory/;
@@ -33,12 +33,12 @@ class QgsHeatmapRenderer : QgsFeatureRenderer
      * @returns color ramp for heatmap
      * @see setColorRamp
      */
-    QgsVectorColorRamp* colorRamp() const;
+    QgsColorRamp* colorRamp() const;
     /** Sets the color ramp to use for shading the heatmap.
      * @param ramp color ramp for heatmap. Ownership of ramp is transferred to the renderer.
      * @see colorRamp
      */
-    void setColorRamp( QgsVectorColorRamp* ramp /Transfer/ );
+    void setColorRamp( QgsColorRamp* ramp /Transfer/ );
 
     /** Returns whether the ramp is inverted
      * @returns true if color ramp is inverted

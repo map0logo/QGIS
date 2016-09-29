@@ -50,10 +50,10 @@ class QgsCategorizedSymbolRenderer : QgsFeatureRenderer
     virtual ~QgsCategorizedSymbolRenderer();
 
     //! @note available in python as symbolForFeature2
-    virtual QgsSymbol* symbolForFeature( QgsFeature& feature, QgsRenderContext& context ) /PyName=symbolForFeature2/;
+    virtual QgsSymbol* symbolForFeature( QgsFeature& feature, QgsRenderContext& context );
 
     //! @note available in python as originalSymbolForFeature2
-    virtual QgsSymbol* originalSymbolForFeature( QgsFeature& feature, QgsRenderContext& context ) /PyName=originalSymbolForFeature2/;
+    virtual QgsSymbol* originalSymbolForFeature( QgsFeature& feature, QgsRenderContext& context );
 
     virtual void startRender( QgsRenderContext& context, const QgsFields& fields );
 
@@ -73,7 +73,7 @@ class QgsCategorizedSymbolRenderer : QgsFeatureRenderer
     virtual QString filter( const QgsFields& fields = QgsFields() );
 
     //! @note available in python as symbols2
-    virtual QgsSymbolList symbols( QgsRenderContext& context ) /PyName=symbols2/;
+    virtual QgsSymbolList symbols( QgsRenderContext& context );
 
     /** Update all the symbols but leave categories and colors. This method also sets the source
      * symbol for the renderer.
@@ -148,14 +148,14 @@ class QgsCategorizedSymbolRenderer : QgsFeatureRenderer
      * @see setSourceColorRamp()
      * @see sourceSymbol()
      */
-    QgsVectorColorRamp* sourceColorRamp();
+    QgsColorRamp* sourceColorRamp();
 
     /** Sets the source color ramp.
       * @param ramp color ramp. Ownership is transferred to the renderer
       * @see sourceColorRamp()
       * @see setSourceSymbol()
       */
-    void setSourceColorRamp( QgsVectorColorRamp* ramp /Transfer/ );
+    void setSourceColorRamp( QgsColorRamp* ramp /Transfer/ );
 
     //! @note added in 2.1
     bool invertedColorRamp();
@@ -166,16 +166,7 @@ class QgsCategorizedSymbolRenderer : QgsFeatureRenderer
       * @param inverted set to true to invert ramp colors
       * @note added in 2.5
       */
-    void updateColorRamp( QgsVectorColorRamp* ramp /Transfer/, bool inverted = false );
-
-    void setRotationField( const QString& fieldOrExpression ) /Deprecated/;
-    QString rotationField() const /Deprecated/;
-
-    void setSizeScaleField( const QString& fieldOrExpression );
-    QString sizeScaleField() const;
-
-    void setScaleMethod( QgsSymbol::ScaleMethod scaleMethod );
-    QgsSymbol::ScaleMethod scaleMethod() const;
+    void updateColorRamp( QgsColorRamp* ramp /Transfer/, bool inverted = false );
 
     //! items of symbology items in legend should be checkable
     //! @note added in 2.5

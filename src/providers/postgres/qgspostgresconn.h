@@ -263,7 +263,7 @@ class QgsPostgresConn : public QObject
 
     /** Double quote a PostgreSQL identifier for placement in a SQL string.
      */
-    static QString quotedIdentifier( QString ident );
+    static QString quotedIdentifier( const QString& ident );
 
     /** Quote a value for placement in a SQL string.
      */
@@ -318,7 +318,7 @@ class QgsPostgresConn : public QObject
 
     static QString postgisWkbTypeName( QgsWkbTypes::Type wkbType );
     static int postgisWkbTypeDim( QgsWkbTypes::Type wkbType );
-    static void postgisWkbType( QgsWkbTypes::Type wkbType, QString &geometryType, int &dim );
+    static void postgisWkbType( QgsWkbTypes::Type wkbType, QString& geometryType, int& dim );
 
     static QString postgisTypeFilter( QString geomCol, QgsWkbTypes::Type wkbType, bool castToGeometry );
 

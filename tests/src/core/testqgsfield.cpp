@@ -40,6 +40,9 @@ class TestQgsField: public QObject
     void displayString();
     void convertCompatible();
     void dataStream();
+    void displayName();
+    void editorWidgetSetup();
+    void collection();
 
   private:
 };
@@ -116,6 +119,10 @@ void TestQgsField::gettersSetters()
   QCOMPARE( field.precision(), 2 );
   field.setComment( "comment" );
   QCOMPARE( field.comment(), QString( "comment" ) );
+  field.setAlias( "alias" );
+  QCOMPARE( field.alias(), QString( "alias" ) );
+  field.setDefaultValueExpression( "1+2" );
+  QCOMPARE( field.defaultValueExpression(), QString( "1+2" ) );
 }
 
 void TestQgsField::isNumeric()
@@ -177,6 +184,14 @@ void TestQgsField::equality()
   QVERIFY( !( field1 == field2 ) );
   QVERIFY( field1 != field2 );
   field2.setPrecision( 2 );
+  field2.setAlias( "alias " );
+  QVERIFY( !( field1 == field2 ) );
+  QVERIFY( field1 != field2 );
+  field2.setAlias( QString() );
+  field2.setDefaultValueExpression( "1+2" );
+  QVERIFY( !( field1 == field2 ) );
+  QVERIFY( field1 != field2 );
+  field2.setDefaultValueExpression( QString() );
 }
 
 void TestQgsField::asVariant()
@@ -358,6 +373,8 @@ void TestQgsField::dataStream()
   original.setPrecision( 2 );
   original.setTypeName( "typename1" );
   original.setComment( "comment1" );
+  original.setAlias( "alias" );
+  original.setDefaultValueExpression( "default" );
 
   QByteArray ba;
   QDataStream ds( &ba, QIODevice::ReadWrite );
@@ -370,6 +387,40 @@ void TestQgsField::dataStream()
   QCOMPARE( result, original );
   QCOMPARE( result.typeName(), original.typeName() ); //typename is NOT required for equality
   QCOMPARE( result.comment(), original.comment() ); //comment is NOT required for equality
+}
+
+void TestQgsField::displayName()
+{
+  QgsField field;
+  field.setName( "name" );
+  QCOMPARE( field.displayName(), QString( "name" ) );
+  field.setAlias( "alias" );
+  QCOMPARE( field.displayName(), QString( "alias" ) );
+  field.setAlias( QString() );
+  QCOMPARE( field.displayName(), QString( "name" ) );
+}
+
+void TestQgsField::editorWidgetSetup()
+{
+  QgsField field;
+  QgsEditorWidgetConfig config;
+  config.insert( "a", "value_a" );
+  const QgsEditorWidgetSetup setup( "test", config );
+  field.setEditorWidgetSetup( setup );
+
+  QCOMPARE( field.editorWidgetSetup().type(), setup.type() );
+  QCOMPARE( field.editorWidgetSetup().config(), setup.config() );
+}
+
+void TestQgsField::collection()
+{
+  QgsField field( "collection", QVariant::List, "_int32", 0, 0, QString(), QVariant::Int );
+  QCOMPARE( field.subType(), QVariant::Int );
+  field.setSubType( QVariant::Double );
+  QCOMPARE( field.subType(), QVariant::Double );
+
+  QVariant str( "hello" );
+  QVERIFY( !field.convertCompatible( str ) );
 }
 
 QTEST_MAIN( TestQgsField )

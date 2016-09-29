@@ -45,7 +45,7 @@ wkbTypeGroups = {
     'LineString': (QgsWkbTypes.LineString, QgsWkbTypes.MultiLineString, QgsWkbTypes.LineString25D, QgsWkbTypes.MultiLineString25D,),
     'Polygon': (QgsWkbTypes.Polygon, QgsWkbTypes.MultiPolygon, QgsWkbTypes.Polygon25D, QgsWkbTypes.MultiPolygon25D,),
 }
-for key, value in wkbTypeGroups.items():
+for key, value in list(wkbTypeGroups.items()):
     for const in value:
         wkbTypeGroups[const] = key
 
@@ -63,9 +63,9 @@ class Intersection(GeoAlgorithm):
         self.name, self.i18n_name = self.trAlgorithm('Intersection')
         self.group, self.i18n_group = self.trAlgorithm('Vector overlay tools')
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterVector(self.INPUT2,
-                                          self.tr('Intersect layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Intersect layer')))
         self.addOutput(OutputVector(self.OUTPUT, self.tr('Intersection')))
 
     def processAlgorithm(self, progress):
@@ -89,15 +89,17 @@ class Intersection(GeoAlgorithm):
             intersects = index.intersects(geom.boundingBox())
             for i in intersects:
                 request = QgsFeatureRequest().setFilterFid(i)
-                inFeatB = vlayerB.getFeatures(request).next()
+                inFeatB = next(vlayerB.getFeatures(request))
                 tmpGeom = inFeatB.geometry()
                 if geom.intersects(tmpGeom):
                     atMapB = inFeatB.attributes()
                     int_geom = QgsGeometry(geom.intersection(tmpGeom))
                     if int_geom.wkbType() == QgsWkbTypes.Unknown or QgsWkbTypes.flatType(int_geom.geometry().wkbType()) == QgsWkbTypes.GeometryCollection:
                         int_com = geom.combine(tmpGeom)
-                        int_sym = geom.symDifference(tmpGeom)
-                        int_geom = QgsGeometry(int_com.difference(int_sym))
+                        int_geom = QgsGeometry()
+                        if int_com:
+                            int_sym = geom.symDifference(tmpGeom)
+                            int_geom = QgsGeometry(int_com.difference(int_sym))
                     if int_geom.isGeosEmpty() or not int_geom.isGeosValid():
                         ProcessingLog.addToLog(ProcessingLog.LOG_ERROR,
                                                self.tr('GEOS geoprocessing error: One or '

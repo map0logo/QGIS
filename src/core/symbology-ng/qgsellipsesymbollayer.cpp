@@ -312,7 +312,7 @@ void QgsEllipseSymbolLayer::calculateOffsetAndRotation( QgsSymbolRenderContext& 
     usingDataDefinedRotation = ok;
   }
 
-  hasDataDefinedRotation = context.renderHints() & QgsSymbol::DataDefinedRotation || usingDataDefinedRotation;
+  hasDataDefinedRotation = context.renderHints() & QgsSymbol::DynamicRotation || usingDataDefinedRotation;
   if ( hasDataDefinedRotation )
   {
     // For non-point markers, "dataDefinedRotation" means following the
@@ -409,12 +409,9 @@ void QgsEllipseSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &elem
   QDomElement graphicElem = doc.createElement( "se:Graphic" );
   element.appendChild( graphicElem );
 
-  QgsSymbolLayerUtils::wellKnownMarkerToSld( doc, graphicElem, mSymbolName, mColor, mOutlineColor, mOutlineStyle, mOutlineWidth, mSymbolWidth );
-
-  // store w/h factor in a <VendorOption>
-  double widthHeightFactor = mSymbolWidth / mSymbolHeight;
-  QDomElement factorElem = QgsSymbolLayerUtils::createVendorOptionElement( doc, "widthHeightFactor", QString::number( widthHeightFactor ) );
-  graphicElem.appendChild( factorElem );
+  double outlineWidth = QgsSymbolLayerUtils::rescaleUom( mOutlineWidth, mOutlineWidthUnit, props );
+  double symbolWidth = QgsSymbolLayerUtils::rescaleUom( mSymbolWidth, mSymbolWidthUnit, props );
+  QgsSymbolLayerUtils::wellKnownMarkerToSld( doc, graphicElem, mSymbolName, mColor, mOutlineColor, mOutlineStyle, outlineWidth, symbolWidth );
 
   // <Rotation>
   QgsDataDefined* ddRotation = getDataDefinedProperty( QgsSymbolLayer::EXPR_ROTATION );
@@ -452,6 +449,15 @@ void QgsEllipseSymbolLayer::writeSldMarker( QDomDocument &doc, QDomElement &elem
     }
   }
   QgsSymbolLayerUtils::createRotationElement( doc, graphicElem, angleFunc );
+
+  // <Displacement>
+  QPointF offset = QgsSymbolLayerUtils::rescaleUom( mOffset, mOffsetUnit, props );
+  QgsSymbolLayerUtils::createDisplacementElement( doc, graphicElem, offset );
+
+  // store w/h factor in a <VendorOption>
+  double widthHeightFactor = mSymbolWidth / mSymbolHeight;
+  QDomElement factorElem = QgsSymbolLayerUtils::createVendorOptionElement( doc, "widthHeightFactor", QString::number( widthHeightFactor ) );
+  graphicElem.appendChild( factorElem );
 }
 
 QgsSymbolLayer* QgsEllipseSymbolLayer::createFromSld( QDomElement &element )
@@ -544,11 +550,7 @@ QSizeF QgsEllipseSymbolLayer::calculateSize( QgsSymbolRenderContext& context, do
     context.setOriginalValueVariable( mSymbolWidth );
     width = evaluateDataDefinedProperty( QgsSymbolLayer::EXPR_WIDTH, context, mSymbolWidth ).toDouble();
   }
-  else if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale ) //2. priority: is data defined size on symbol level
-  {
-    width = mSize;
-  }
-  else //3. priority: global width setting
+  else //2. priority: global width setting
   {
     width = mSymbolWidth;
   }
@@ -564,11 +566,7 @@ QSizeF QgsEllipseSymbolLayer::calculateSize( QgsSymbolRenderContext& context, do
     context.setOriginalValueVariable( mSymbolHeight );
     height = evaluateDataDefinedProperty( QgsSymbolLayer::EXPR_HEIGHT, context, mSymbolHeight ).toDouble();
   }
-  else if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale ) //2. priority: is data defined size on symbol level
-  {
-    height = mSize;
-  }
-  else //3. priority: global height setting
+  else //2. priority: global height setting
   {
     height = mSymbolHeight;
   }
@@ -739,10 +737,6 @@ bool QgsEllipseSymbolLayer::writeDxf( QgsDxfExport& e, double mmMapUnitScaleFact
     context.setOriginalValueVariable( mSymbolWidth );
     symbolWidth = evaluateDataDefinedProperty( QgsSymbolLayer::EXPR_WIDTH, context, mSymbolWidth ).toDouble();
   }
-  else if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale ) //2. priority: is data defined size on symbol level
-  {
-    symbolWidth = mSize;
-  }
   if ( mSymbolWidthUnit == QgsUnitTypes::RenderMillimeters )
   {
     symbolWidth *= mmMapUnitScaleFactor;
@@ -754,10 +748,6 @@ bool QgsEllipseSymbolLayer::writeDxf( QgsDxfExport& e, double mmMapUnitScaleFact
   {
     context.setOriginalValueVariable( mSymbolHeight );
     symbolHeight = evaluateDataDefinedProperty( QgsSymbolLayer::EXPR_HEIGHT, context, mSymbolHeight ).toDouble();
-  }
-  else if ( context.renderHints() & QgsSymbol::DataDefinedSizeScale ) //2. priority: is data defined size on symbol level
-  {
-    symbolHeight = mSize;
   }
   if ( mSymbolHeightUnit == QgsUnitTypes::RenderMillimeters )
   {

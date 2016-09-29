@@ -63,11 +63,9 @@ class SelectByLocation(GeoAlgorithm):
                         self.tr('removing from current selection')]
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Layer to select from'),
-                                          [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Layer to select from')))
         self.addParameter(ParameterVector(self.INTERSECT,
-                                          self.tr('Additional layer (intersection layer)'),
-                                          [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Additional layer (intersection layer)')))
         self.addParameter(ParameterGeometryPredicate(self.PREDICATE,
                                                      self.tr('Geometric predicate'),
                                                      left=self.INPUT, right=self.INTERSECT))
@@ -108,7 +106,7 @@ class SelectByLocation(GeoAlgorithm):
 
             for i in intersects:
                 request = QgsFeatureRequest().setFilterFid(i)
-                feat = inputLayer.getFeatures(request).next()
+                feat = next(inputLayer.getFeatures(request))
                 tmpGeom = vector.snapToPrecision(feat.geometry(), precision)
 
                 res = False

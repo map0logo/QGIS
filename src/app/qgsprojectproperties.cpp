@@ -40,7 +40,7 @@
 #include "qgsstyle.h"
 #include "qgssymbol.h"
 #include "qgsstylemanagerdialog.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 #include "qgssymbolselectordialog.h"
 #include "qgsrelationmanagerdialog.h"
 #include "qgsrelationmanager.h"
@@ -528,6 +528,9 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   bool addWktGeometry = QgsProject::instance()->readBoolEntry( "WMSAddWktGeometry", "/" );
   mAddWktGeometryCheckBox->setChecked( addWktGeometry );
 
+  bool segmentizeFeatureInfoGeometry = QgsProject::instance()->readBoolEntry( "WMSSegmentizeFeatureInfoGeometry", "/" );
+  mSegmentizeFeatureInfoGeometryCheckBox->setChecked( segmentizeFeatureInfoGeometry );
+
   bool useLayerIDs = QgsProject::instance()->readBoolEntry( "WMSUseLayerIDs", "/" );
   mWmsUseLayerIDs->setChecked( useLayerIDs );
 
@@ -666,6 +669,8 @@ QgsProjectProperties::QgsProjectProperties( QgsMapCanvas* mapCanvas, QWidget *pa
   connect( mButtonCopyColors, SIGNAL( clicked() ), mTreeProjectColors, SLOT( copyColors() ) );
   connect( mButtonRemoveColor, SIGNAL( clicked() ), mTreeProjectColors, SLOT( removeSelection() ) );
   connect( mButtonPasteColors, SIGNAL( clicked() ), mTreeProjectColors, SLOT( pasteColors() ) );
+  connect( mButtonImportColors, SIGNAL( clicked( bool ) ), mTreeProjectColors, SLOT( showImportColorsDialog() ) );
+  connect( mButtonExportColors, SIGNAL( clicked( bool ) ), mTreeProjectColors, SLOT( showExportColorsDialog() ) );
 
   QList<QgsProjectColorScheme *> projectSchemes;
   QgsColorSchemeRegistry::instance()->schemes( projectSchemes );
@@ -810,7 +815,7 @@ void QgsProjectProperties::apply()
   QgsProject::instance()->writeEntry( "PositionPrecision", "/Automatic", radAutomatic->isChecked() );
   QgsProject::instance()->writeEntry( "PositionPrecision", "/DecimalPlaces", spinBoxDP->value() );
   QString degreeFormat;
-  switch ( static_cast< CoordinateFormat >( mCoordinateDisplayComboBox->itemData( mCoordinateDisplayComboBox->currentIndex() ).toInt() ) )
+  switch ( static_cast< CoordinateFormat >( mCoordinateDisplayComboBox->currentData().toInt() ) )
   {
     case DegreesMinutes:
       degreeFormat = "DM";
@@ -831,10 +836,10 @@ void QgsProjectProperties::apply()
   // Announce that we may have a new display precision setting
   emit displayPrecisionChanged();
 
-  QgsUnitTypes::DistanceUnit distanceUnits = static_cast< QgsUnitTypes::DistanceUnit >( mDistanceUnitsCombo->itemData( mDistanceUnitsCombo->currentIndex() ).toInt() );
+  QgsUnitTypes::DistanceUnit distanceUnits = static_cast< QgsUnitTypes::DistanceUnit >( mDistanceUnitsCombo->currentData().toInt() );
   QgsProject::instance()->writeEntry( "Measurement", "/DistanceUnits", QgsUnitTypes::encodeUnit( distanceUnits ) );
 
-  QgsUnitTypes::AreaUnit areaUnits = static_cast< QgsUnitTypes::AreaUnit >( mAreaUnitsCombo->itemData( mAreaUnitsCombo->currentIndex() ).toInt() );
+  QgsUnitTypes::AreaUnit areaUnits = static_cast< QgsUnitTypes::AreaUnit >( mAreaUnitsCombo->currentData().toInt() );
   QgsProject::instance()->writeEntry( "Measurement", "/AreaUnits", QgsUnitTypes::encodeUnit( areaUnits ) );
 
   QgsProject::instance()->writeEntry( "Paths", "/Absolute", cbxAbsolutePath->currentIndex() == 0 );
@@ -1075,6 +1080,7 @@ void QgsProjectProperties::apply()
   }
 
   QgsProject::instance()->writeEntry( "WMSAddWktGeometry", "/", mAddWktGeometryCheckBox->isChecked() );
+  QgsProject::instance()->writeEntry( "WMSSegmentizeFeatureInfoGeometry", "/", mSegmentizeFeatureInfoGeometryCheckBox->isChecked() );
   QgsProject::instance()->writeEntry( "WMSUseLayerIDs", "/", mWmsUseLayerIDs->isChecked() );
 
   QString maxWidthText = mMaxWidthLineEdit->text();
@@ -1713,10 +1719,9 @@ void QgsProjectProperties::populateStyles()
   for ( int i = 0; i < colorRamps.count(); ++i )
   {
     QString name = colorRamps[i];
-    QgsVectorColorRamp* ramp = mStyle->colorRamp( name );
-    QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp, cboStyleColorRamp->iconSize() );
+    QScopedPointer< QgsColorRamp > ramp( mStyle->colorRamp( name ) );
+    QIcon icon = QgsSymbolLayerUtils::colorRampPreviewIcon( ramp.data(), cboStyleColorRamp->iconSize() );
     cboStyleColorRamp->addItem( icon, name );
-    delete ramp;
   }
 
   // set current index if found
@@ -2028,64 +2033,6 @@ void QgsProjectProperties::on_mButtonAddColor_clicked()
   activateWindow();
 
   mTreeProjectColors->addColor( newColor, QgsSymbolLayerUtils::colorToName( newColor ) );
-}
-
-void QgsProjectProperties::on_mButtonImportColors_clicked()
-{
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
-  QString filePath = QFileDialog::getOpenFileName( this, tr( "Select palette file" ), lastDir, "GPL (*.gpl);;All files (*.*)" );
-  activateWindow();
-  if ( filePath.isEmpty() )
-  {
-    return;
-  }
-
-  //check if file exists
-  QFileInfo fileInfo( filePath );
-  if ( !fileInfo.exists() || !fileInfo.isReadable() )
-  {
-    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, file does not exist or is not readable" ) );
-    return;
-  }
-
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-  QFile file( filePath );
-  bool importOk = mTreeProjectColors->importColorsFromGpl( file );
-  if ( !importOk )
-  {
-    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, no colors found in palette file" ) );
-    return;
-  }
-}
-
-void QgsProjectProperties::on_mButtonExportColors_clicked()
-{
-  QSettings s;
-  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
-  QString fileName = QFileDialog::getSaveFileName( this, tr( "Palette file" ), lastDir, "GPL (*.gpl)" );
-  activateWindow();
-  if ( fileName.isEmpty() )
-  {
-    return;
-  }
-
-  // ensure filename contains extension
-  if ( !fileName.endsWith( ".gpl", Qt::CaseInsensitive ) )
-  {
-    fileName += ".gpl";
-  }
-
-  QFileInfo fileInfo( fileName );
-  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
-
-  QFile file( fileName );
-  bool exportOk = mTreeProjectColors->exportColorsToGpl( file );
-  if ( !exportOk )
-  {
-    QMessageBox::critical( nullptr, tr( "Error exporting" ), tr( "Error writing palette file" ) );
-    return;
-  }
 }
 
 QListWidgetItem* QgsProjectProperties::addScaleToScaleList( const QString &newScale )

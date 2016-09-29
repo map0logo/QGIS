@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -61,13 +62,13 @@ class ConvexHull(GeoAlgorithm):
                         self.tr('Create convex hulls based on field')]
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterTableField(self.FIELD,
                                               self.tr('Field (optional, only used if creating convex hulls by classes)'),
                                               self.INPUT, optional=True))
         self.addParameter(ParameterSelection(self.METHOD,
                                              self.tr('Method'), self.methods))
-        self.addOutput(OutputVector(self.OUTPUT, self.tr('Convex hull')))
+        self.addOutput(OutputVector(self.OUTPUT, self.tr('Convex hull'), datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def processAlgorithm(self, progress):
         layer = dataobjects.getObjectFromUri(
@@ -116,7 +117,7 @@ class ConvexHull(GeoAlgorithm):
                 features = vector.features(layer)
                 for f in features:
                     idVar = f[fieldName]
-                    if unicode(idVar).strip() == unicode(i).strip():
+                    if str(idVar).strip() == str(i).strip():
                         if first:
                             val = idVar
                             first = False

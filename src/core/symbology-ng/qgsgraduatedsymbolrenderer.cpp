@@ -17,7 +17,7 @@
 
 #include "qgssymbol.h"
 #include "qgssymbollayerutils.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 #include "qgspointdisplacementrenderer.h"
 #include "qgsinvertedpolygonrenderer.h"
 #include "qgspainteffect.h"
@@ -289,7 +289,6 @@ QgsGraduatedSymbolRenderer::QgsGraduatedSymbolRenderer( const QString& attrName,
     , mAttrName( attrName )
     , mMode( Custom )
     , mInvertedColorRamp( false )
-    , mScaleMethod( DEFAULT_SCALE_METHOD )
     , mGraduatedMethod( GraduatedColor )
     , mAttrNum( -1 )
     , mCounting( false )
@@ -348,34 +347,7 @@ QString QgsGraduatedSymbolRenderer::legendKeyForValue( double value ) const
 
 QgsSymbol* QgsGraduatedSymbolRenderer::symbolForFeature( QgsFeature& feature, QgsRenderContext &context )
 {
-  QgsSymbol* symbol = originalSymbolForFeature( feature, context );
-  if ( !symbol )
-    return nullptr;
-
-  if ( !mRotation.data() && !mSizeScale.data() )
-    return symbol; // no data-defined rotation/scaling - just return the symbol
-
-  // find out rotation, size scale
-  const double rotation = mRotation.data() ? mRotation->evaluate( &context.expressionContext() ).toDouble() : 0;
-  const double sizeScale = mSizeScale.data() ? mSizeScale->evaluate( &context.expressionContext() ).toDouble() : 1.;
-
-  // take a temporary symbol (or create it if doesn't exist)
-  QgsSymbol* tempSymbol = mTempSymbols[symbol];
-
-  // modify the temporary symbol and return it
-  if ( tempSymbol->type() == QgsSymbol::Marker )
-  {
-    QgsMarkerSymbol* markerSymbol = static_cast<QgsMarkerSymbol*>( tempSymbol );
-    if ( mRotation.data() ) markerSymbol->setAngle( rotation );
-    markerSymbol->setSize( sizeScale * static_cast<QgsMarkerSymbol*>( symbol )->size() );
-    markerSymbol->setScaleMethod( mScaleMethod );
-  }
-  else if ( tempSymbol->type() == QgsSymbol::Line )
-  {
-    QgsLineSymbol* lineSymbol = static_cast<QgsLineSymbol*>( tempSymbol );
-    lineSymbol->setWidth( sizeScale * static_cast<QgsLineSymbol*>( symbol )->width() );
-  }
-  return tempSymbol;
+  return originalSymbolForFeature( feature, context );
 }
 
 QVariant QgsGraduatedSymbolRenderer::valueForFeature( QgsFeature& feature, QgsRenderContext &context ) const
@@ -425,15 +397,6 @@ void QgsGraduatedSymbolRenderer::startRender( QgsRenderContext& context, const Q
       continue;
 
     range.symbol()->startRender( context, fields );
-
-    if ( mRotation.data() || mSizeScale.data() )
-    {
-      QgsSymbol* tempSymbol = range.symbol()->clone();
-      tempSymbol->setRenderHints(( mRotation.data() ? QgsSymbol::DataDefinedRotation : 0 ) |
-                                 ( mSizeScale.data() ? QgsSymbol::DataDefinedSizeScale : 0 ) );
-      tempSymbol->startRender( context, fields );
-      mTempSymbols[ range.symbol()] = tempSymbol;
-    }
   }
   return;
 }
@@ -447,15 +410,6 @@ void QgsGraduatedSymbolRenderer::stopRender( QgsRenderContext& context )
 
     range.symbol()->stopRender( context );
   }
-
-  // cleanup mTempSymbols
-  QHash<QgsSymbol*, QgsSymbol*>::const_iterator it2 = mTempSymbols.constBegin();
-  for ( ; it2 != mTempSymbols.constEnd(); ++it2 )
-  {
-    it2.value()->stopRender( context );
-    delete it2.value();
-  }
-  mTempSymbols.clear();
 }
 
 QList<QString> QgsGraduatedSymbolRenderer::usedAttributes()
@@ -471,9 +425,6 @@ QList<QString> QgsGraduatedSymbolRenderer::usedAttributes()
   QgsExpression testExpr( mAttrName );
   if ( !testExpr.hasParserError() )
     attributes.unite( testExpr.referencedColumns().toSet() );
-
-  if ( mRotation.data() ) attributes.unite( mRotation->referencedColumns().toSet() );
-  if ( mSizeScale.data() ) attributes.unite( mSizeScale->referencedColumns().toSet() );
 
   QgsRangeList::const_iterator range_it = mRanges.constBegin();
   for ( ; range_it != mRanges.constEnd(); ++range_it )
@@ -553,22 +504,16 @@ QgsGraduatedSymbolRenderer* QgsGraduatedSymbolRenderer::clone() const
     r->setInvertedColorRamp( mInvertedColorRamp );
   }
   r->setUsingSymbolLevels( usingSymbolLevels() );
-  r->setSizeScaleField( sizeScaleField() );
   r->setLabelFormat( labelFormat() );
   r->setGraduatedMethod( graduatedMethod() );
   copyRendererData( r );
   return r;
 }
 
-void QgsGraduatedSymbolRenderer::toSld( QDomDocument& doc, QDomElement &element ) const
+void QgsGraduatedSymbolRenderer::toSld( QDomDocument& doc, QDomElement &element, QgsStringMap props ) const
 {
-  QgsStringMap props;
   props[ "attribute" ] = mAttrName;
   props[ "method" ] = graduatedMethodStr( mGraduatedMethod );
-  if ( mRotation.data() )
-    props[ "angle" ] = mRotation->expression();
-  if ( mSizeScale.data() )
-    props[ "scale" ] = mSizeScale->expression();
 
   // create a Rule for each range
   bool first = true;
@@ -843,7 +788,7 @@ QgsGraduatedSymbolRenderer* QgsGraduatedSymbolRenderer::createRenderer(
   int classes,
   Mode mode,
   QgsSymbol* symbol,
-  QgsVectorColorRamp* ramp,
+  QgsColorRamp* ramp,
   bool inverted,
   const QgsRendererRangeLabelFormat& labelFormat
 )
@@ -857,12 +802,6 @@ QgsGraduatedSymbolRenderer* QgsGraduatedSymbolRenderer::createRenderer(
   r->setLabelFormat( labelFormat );
   r->updateClasses( vlayer, mode, classes );
   return r;
-}
-
-QList<double> QgsGraduatedSymbolRenderer::getDataValues( QgsVectorLayer *vlayer )
-{
-  bool ok;
-  return vlayer->getDoubleValues( mAttrName, ok );
 }
 
 void QgsGraduatedSymbolRenderer::updateClasses( QgsVectorLayer *vlayer, Mode mode, int nclasses )
@@ -1183,14 +1122,9 @@ QDomElement QgsGraduatedSymbolRenderer::save( QDomDocument& doc )
   }
 
   QDomElement rotationElem = doc.createElement( "rotation" );
-  if ( mRotation.data() )
-    rotationElem.setAttribute( "field", QgsSymbolLayerUtils::fieldOrExpressionFromExpression( mRotation.data() ) );
   rendererElem.appendChild( rotationElem );
 
   QDomElement sizeScaleElem = doc.createElement( "sizescale" );
-  if ( mSizeScale.data() )
-    sizeScaleElem.setAttribute( "field", QgsSymbolLayerUtils::fieldOrExpressionFromExpression( mSizeScale.data() ) );
-  sizeScaleElem.setAttribute( "scalemethod", QgsSymbolLayerUtils::encodeScaleMethod( mScaleMethod ) );
   rendererElem.appendChild( sizeScaleElem );
 
   QDomElement labelFormatElem = doc.createElement( "labelformat" );
@@ -1315,12 +1249,12 @@ void QgsGraduatedSymbolRenderer::setSourceSymbol( QgsSymbol* sym )
   mSourceSymbol.reset( sym );
 }
 
-QgsVectorColorRamp* QgsGraduatedSymbolRenderer::sourceColorRamp()
+QgsColorRamp* QgsGraduatedSymbolRenderer::sourceColorRamp()
 {
   return mSourceColorRamp.data();
 }
 
-void QgsGraduatedSymbolRenderer::setSourceColorRamp( QgsVectorColorRamp* ramp )
+void QgsGraduatedSymbolRenderer::setSourceColorRamp( QgsColorRamp* ramp )
 {
   mSourceColorRamp.reset( ramp );
 }
@@ -1371,7 +1305,7 @@ void QgsGraduatedSymbolRenderer::setSymbolSizes( double minSize, double maxSize 
   }
 }
 
-void QgsGraduatedSymbolRenderer::updateColorRamp( QgsVectorColorRamp *ramp, bool inverted )
+void QgsGraduatedSymbolRenderer::updateColorRamp( QgsColorRamp *ramp, bool inverted )
 {
   int i = 0;
   if ( ramp )
@@ -1427,48 +1361,6 @@ void QgsGraduatedSymbolRenderer::updateSymbols( QgsSymbol *sym )
     ++i;
   }
   setSourceSymbol( sym->clone() );
-}
-
-void QgsGraduatedSymbolRenderer::setRotationField( const QString& fieldOrExpression )
-{
-  if ( mSourceSymbol->type() == QgsSymbol::Marker )
-  {
-    QgsMarkerSymbol * s = static_cast<QgsMarkerSymbol *>( mSourceSymbol.data() );
-    s->setDataDefinedAngle( QgsDataDefined( fieldOrExpression ) );
-  }
-
-}
-
-QString QgsGraduatedSymbolRenderer::rotationField() const
-{
-  if ( mSourceSymbol->type() == QgsSymbol::Marker )
-  {
-    QgsMarkerSymbol * s = static_cast<QgsMarkerSymbol *>( mSourceSymbol.data() );
-    QgsDataDefined ddAngle = s->dataDefinedAngle();
-    return ddAngle.useExpression() ? ddAngle.expressionString() : ddAngle.field();
-  }
-
-  return QString();
-}
-
-void QgsGraduatedSymbolRenderer::setSizeScaleField( const QString& fieldOrExpression )
-{
-  mSizeScale.reset( QgsSymbolLayerUtils::fieldOrExpressionToExpression( fieldOrExpression ) );
-}
-
-QString QgsGraduatedSymbolRenderer::sizeScaleField() const
-{
-  return mSizeScale.data() ? QgsSymbolLayerUtils::fieldOrExpressionFromExpression( mSizeScale.data() ) : QString();
-}
-
-void QgsGraduatedSymbolRenderer::setScaleMethod( QgsSymbol::ScaleMethod scaleMethod )
-{
-  mScaleMethod = scaleMethod;
-  Q_FOREACH ( const QgsRendererRange& range, mRanges )
-  {
-    if ( range.symbol() )
-      setScaleMethodToSymbol( range.symbol(), scaleMethod );
-  }
 }
 
 bool QgsGraduatedSymbolRenderer::legendSymbolItemsCheckable() const

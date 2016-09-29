@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import range
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -64,7 +65,7 @@ class RandomSelectionWithinSubsets(GeoAlgorithm):
                         self.tr('Percentage of selected features')]
 
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterTableField(self.FIELD,
                                               self.tr('ID Field'), self.INPUT))
         self.addParameter(ParameterSelection(self.METHOD,
@@ -130,6 +131,6 @@ class RandomSelectionWithinSubsets(GeoAlgorithm):
                 selran.extend(selFeat)
             layer.selectByIds(selran)
         else:
-            layer.selectByIds(range(featureCount))  # FIXME: implies continuous feature ids
+            layer.selectByIds(list(range(featureCount)))  # FIXME: implies continuous feature ids
 
         self.setOutputValue(self.OUTPUT, filename)

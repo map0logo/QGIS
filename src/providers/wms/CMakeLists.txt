@@ -1,6 +1,4 @@
-IF (QT5_BUILD)
-  FIND_PACKAGE(Qt5XmlPatterns REQUIRED)
-ENDIF()
+FIND_PACKAGE(Qt5XmlPatterns REQUIRED)
 
 
 SET (WMS_SRCS
@@ -9,8 +7,10 @@ SET (WMS_SRCS
   qgswmssourceselect.cpp
   qgswmsconnection.cpp
   qgswmsdataitems.cpp
+  qgstilecache.cpp
   qgstilescalewidget.cpp
   qgswmtsdimensions.cpp
+  qgsxyzconnection.cpp
 )
 SET (WMS_MOC_HDRS
   qgswmscapabilities.h
@@ -22,7 +22,7 @@ SET (WMS_MOC_HDRS
   qgswmtsdimensions.h
 )
 
-QT4_WRAP_CPP (WMS_MOC_SRCS ${WMS_MOC_HDRS})
+QT5_WRAP_CPP (WMS_MOC_SRCS ${WMS_MOC_HDRS})
 
 INCLUDE_DIRECTORIES(
   .

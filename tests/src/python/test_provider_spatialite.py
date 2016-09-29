@@ -19,18 +19,14 @@ import sys
 import shutil
 import tempfile
 
-from qgis.core import QgsVectorLayer, QgsPoint, QgsFeature
+from qgis.core import QgsVectorLayer, QgsPoint, QgsFeature, QgsGeometry
 
 from qgis.testing import start_app, unittest
 from utilities import unitTestDataPath
 from providertestbase import ProviderTestCase
-from qgis.PyQt.QtCore import QSettings
+from qgis.PyQt.QtCore import QSettings, QVariant
 
-try:
-    from pyspatialite import dbapi2 as sqlite3
-except ImportError:
-    print("You should install pyspatialite to run the tests")
-    raise ImportError
+from qgis.utils import spatialite_connect
 
 # Pass no_exit=True: for some reason this crashes on exit on Travis MacOSX
 start_app(sys.platform != 'darwin')
@@ -70,7 +66,7 @@ class TestQgsSpatialiteProvider(unittest.TestCase, ProviderTestCase):
         cls.dbname = os.path.join(tempfile.gettempdir(), "test.sqlite")
         if os.path.exists(cls.dbname):
             os.remove(cls.dbname)
-        con = sqlite3.connect(cls.dbname, isolation_level=None)
+        con = spatialite_connect(cls.dbname, isolation_level=None)
         cur = con.cursor()
         cur.execute("BEGIN")
         sql = "SELECT InitSpatialMetadata()"
@@ -118,6 +114,15 @@ class TestQgsSpatialiteProvider(unittest.TestCase, ProviderTestCase):
         sql += "VALUES (2, 'toto', GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))', 4326))"
         cur.execute(sql)
 
+        # table with different array types, stored as JSON
+        sql = "CREATE TABLE test_arrays (Id INTEGER NOT NULL PRIMARY KEY, strings JSONSTRINGLIST NOT NULL, ints JSONINTEGERLIST NOT NULL, reals JSONREALLIST NOT NULL)"
+        cur.execute(sql)
+        sql = "SELECT AddGeometryColumn('test_arrays', 'Geometry', 4326, 'POLYGON', 'XY')"
+        cur.execute(sql)
+        sql = "INSERT INTO test_arrays (id, strings, ints, reals, geometry) "
+        sql += "VALUES (1, '[\"toto\",\"tutu\"]', '[1,-2,724562]', '[1.0, -232567.22]', GeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))', 4326))"
+        cur.execute(sql)
+
         cur.execute("COMMIT")
         con.close()
 
@@ -138,10 +143,10 @@ class TestQgsSpatialiteProvider(unittest.TestCase, ProviderTestCase):
         pass
 
     def enableCompiler(self):
-        QSettings().setValue(u'/qgis/compileExpressions', True)
+        QSettings().setValue('/qgis/compileExpressions', True)
 
     def disableCompiler(self):
-        QSettings().setValue(u'/qgis/compileExpressions', False)
+        QSettings().setValue('/qgis/compileExpressions', False)
 
     def uncompiledFilters(self):
         return set(['cnt = 10 ^ 2',
@@ -227,7 +232,7 @@ class TestQgsSpatialiteProvider(unittest.TestCase, ProviderTestCase):
         shutil.copy(self.dbname, corrupt_dbname)
         layer = QgsVectorLayer("dbname=%s table=test_pg (geometry)" % corrupt_dbname, "test_pg", "spatialite")
         # Corrupt the database
-        open(corrupt_dbname, 'wb').write('')
+        open(corrupt_dbname, 'wb').write(b'')
         layer.getFeatures()
         layer = None
         os.unlink(corrupt_dbname)
@@ -242,7 +247,7 @@ class TestQgsSpatialiteProvider(unittest.TestCase, ProviderTestCase):
         self.assertTrue(vl.isValid())
         # The iterator will take one extra connection
         myiter = vl.getFeatures()
-        print(vl.featureCount())
+        print((vl.featureCount()))
         # Consume one feature but the iterator is still opened
         f = next(myiter)
         self.assertTrue(f.isValid())
@@ -298,6 +303,70 @@ class TestQgsSpatialiteProvider(unittest.TestCase, ProviderTestCase):
         # Check that deletion works well (can only fail on Windows)
         os.unlink(temp_dbname)
         self.assertFalse(os.path.exists(temp_dbname))
+
+    def test_arrays(self):
+        """Test loading of layers with arrays"""
+        l = QgsVectorLayer("dbname=%s table=test_arrays (geometry)" % self.dbname, "test_arrays", "spatialite")
+        self.assertTrue(l.isValid())
+
+        features = [f for f in l.getFeatures()]
+        self.assertEqual(len(features), 1)
+
+        strings_field = l.fields().field('strings')
+        self.assertEqual(strings_field.typeName(), 'jsonstringlist')
+        self.assertEqual(strings_field.type(), QVariant.StringList)
+        self.assertEqual(strings_field.subType(), QVariant.String)
+        strings = features[0].attributes()[1]
+        self.assertEqual(strings, ['toto', 'tutu'])
+
+        ints_field = l.fields().field('ints')
+        self.assertEqual(ints_field.typeName(), 'jsonintegerlist')
+        self.assertEqual(ints_field.type(), QVariant.List)
+        self.assertEqual(ints_field.subType(), QVariant.LongLong)
+        ints = features[0].attributes()[2]
+        self.assertEqual(ints, [1, -2, 724562])
+
+        reals_field = l.fields().field('reals')
+        self.assertEqual(reals_field.typeName(), 'jsonreallist')
+        self.assertEqual(reals_field.type(), QVariant.List)
+        self.assertEqual(reals_field.subType(), QVariant.Double)
+        reals = features[0].attributes()[3]
+        self.assertEqual(reals, [1.0, -232567.22])
+
+        new_f = QgsFeature(l.fields())
+        new_f['id'] = 2
+        new_f['strings'] = ['simple', '"doubleQuote"', "'quote'", 'back\\slash']
+        new_f['ints'] = [1, 2, 3, 4]
+        new_f['reals'] = [1e67, 1e-56]
+        r, fs = l.dataProvider().addFeatures([new_f])
+        self.assertTrue(r)
+
+        read_back = l.getFeature(new_f['id'])
+        self.assertEqual(read_back['id'], new_f['id'])
+        self.assertEqual(read_back['strings'], new_f['strings'])
+        self.assertEqual(read_back['ints'], new_f['ints'])
+        self.assertEqual(read_back['reals'], new_f['reals'])
+
+    # This test would fail. It would require turning on WAL
+    def XXXXXtestLocking(self):
+
+        temp_dbname = self.dbname + '.locking'
+        shutil.copy(self.dbname, temp_dbname)
+
+        vl = QgsVectorLayer("dbname=%s table=test_n (geometry)" % temp_dbname, "test_n", "spatialite")
+        self.assertTrue(vl.isValid())
+
+        self.assertTrue(vl.startEditing())
+        self.assertTrue(vl.changeGeometry(1, QgsGeometry.fromWkt('POLYGON((0 0,1 0,1 1,0 1,0 0))')))
+
+        # The iterator will take one extra connection
+        myiter = vl.getFeatures()
+
+        # Consume one feature but the iterator is still opened
+        f = next(myiter)
+        self.assertTrue(f.isValid())
+
+        self.assertTrue(vl.commitChanges())
 
 
 if __name__ == '__main__':

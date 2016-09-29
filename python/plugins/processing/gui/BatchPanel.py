@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 __author__ = 'Alexander Bruy'
 __date__ = 'November 2014'
@@ -128,7 +130,7 @@ class BatchPanel(BASE, WIDGET):
                 column, QTableWidgetItem(self.tr('Load in QGIS')))
 
         # Add three empty rows by default
-        for i in xrange(3):
+        for i in range(3):
             self.addRow()
 
         self.tblParameters.horizontalHeader().setResizeMode(QHeaderView.Interactive)
@@ -156,7 +158,7 @@ class BatchPanel(BASE, WIDGET):
         elif isinstance(param, ParameterFixedTable):
             item = FixedTablePanel(param)
         elif isinstance(param, ParameterExtent):
-            item = ExtentSelectionPanel(self.parent, self.alg, param.default)
+            item = ExtentSelectionPanel(self.parent, param.default)
         elif isinstance(param, ParameterPoint):
             item = PointSelectionPanel(self.parent, param.default)
         elif isinstance(param, ParameterCrs):
@@ -170,17 +172,18 @@ class BatchPanel(BASE, WIDGET):
             self.tblParameters.setColumnWidth(col, width)
         else:
             item = QLineEdit()
-            try:
-                item.setText(unicode(param.default))
-            except:
-                pass
+            if param.default is not None:
+                try:
+                    item.setText(str(param.default))
+                except:
+                    pass
 
         return item
 
     def load(self):
-        filename = unicode(QFileDialog.getOpenFileName(self,
-                                                       self.tr('Open batch'), None,
-                                                       self.tr('JSON files (*.json)')))
+        filename, selected_filter = str(QFileDialog.getOpenFileName(self,
+                                                                    self.tr('Open batch'), None,
+                                                                    self.tr('JSON files (*.json)')))
         if filename:
             with open(filename) as f:
                 values = json.load(f)
@@ -220,12 +223,12 @@ class BatchPanel(BASE, WIDGET):
 
     def setValueInWidget(self, widget, value):
         if isinstance(widget, (BatchInputSelectionPanel, QLineEdit, FileSelectionPanel)):
-            widget.setText(unicode(value))
+            widget.setText(str(value))
         elif isinstance(widget, (BatchOutputSelectionPanel, GeometryPredicateSelectionPanel)):
-            widget.setValue(unicode(value))
+            widget.setValue(str(value))
 
         elif isinstance(widget, QComboBox):
-            idx = widget.findText(unicode(value))
+            idx = widget.findText(str(value))
             if idx != -1:
                 widget.setCurrentIndex(idx)
         elif isinstance(widget, ExtentSelectionPanel):
@@ -246,27 +249,12 @@ class BatchPanel(BASE, WIDGET):
             for param in alg.parameters:
                 if param.hidden:
                     continue
-                if isinstance(param, ParameterExtent):
-                    col += 1
-                    continue
                 widget = self.tblParameters.cellWidget(row, col)
                 if not self.setParamValue(param, widget, alg):
                     self.parent.lblProgress.setText(
                         self.tr('<b>Missing parameter value: %s (row %d)</b>') % (param.description, row + 1))
                     return
                 algParams[param.name] = param.getValueAsCommandLineParameter()
-                col += 1
-            col = 0
-            for param in alg.parameters:
-                if param.hidden:
-                    continue
-                if isinstance(param, ParameterExtent):
-                    widget = self.tblParameters.cellWidget(row, col)
-                    if not self.setParamValue(param, widget, alg):
-                        self.parent.lblProgress.setText(
-                            self.tr('<b>Missing parameter value: %s (row %d)</b>') % (param.description, row + 1))
-                        return
-                    algParams[param.name] = unicode(param.value())
                 col += 1
             for out in alg.outputs:
                 if out.hidden:
@@ -282,10 +270,10 @@ class BatchPanel(BASE, WIDGET):
                     return
             toSave.append({self.PARAMETERS: algParams, self.OUTPUTS: algOutputs})
 
-        filename = unicode(QFileDialog.getSaveFileName(self,
+        filename, filter = QFileDialog.getSaveFileName(self,
                                                        self.tr('Save batch'),
                                                        None,
-                                                       self.tr('JSON files (*.json)')))
+                                                       self.tr('JSON files (*.json)'))
         if filename:
             if not filename.endswith('.json'):
                 filename += '.json'
@@ -296,7 +284,7 @@ class BatchPanel(BASE, WIDGET):
         if isinstance(param, (ParameterRaster, ParameterVector, ParameterTable,
                               ParameterMultipleInput)):
             value = widget.getText()
-            if unicode(value).strip() == '':
+            if str(value).strip() == '':
                 value = None
             return param.setValue(value)
         elif isinstance(param, ParameterBoolean):

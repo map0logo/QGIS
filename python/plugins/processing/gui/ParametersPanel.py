@@ -20,6 +20,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -114,7 +115,7 @@ class ParametersPanel(BASE, WIDGET):
                 if param.hidden:
                     continue
                 if isinstance(param, ParameterVector):
-                    if dataobjects.canUseVectorLayer(layer, param.shapetype):
+                    if dataobjects.canUseVectorLayer(layer, param.datatype):
                         widget = self.valueItems[param.name]
                         if isinstance(widget, InputLayerSelectorPanel):
                             widget = widget.cmbText
@@ -161,10 +162,10 @@ class ParametersPanel(BASE, WIDGET):
 
     def updateMultipleInputs(self):
         for param in self.alg.parameters:
-            if isinstance(param, ParameterMultipleInput) and param.datatype != ParameterMultipleInput.TYPE_FILE:
-                if param.datatype == ParameterMultipleInput.TYPE_RASTER:
+            if isinstance(param, ParameterMultipleInput) and param.datatype != dataobjects.TYPE_FILE:
+                if param.datatype == dataobjects.TYPE_RASTER:
                     options = dataobjects.getRasterLayers(sorting=False)
-                elif param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
+                elif param.datatype == dataobjects.TYPE_VECTOR_ANY:
                     options = dataobjects.getVectorLayers(sorting=False)
                 else:
                     options = dataobjects.getVectorLayers([param.datatype], sorting=False)
@@ -265,7 +266,7 @@ class ParametersPanel(BASE, WIDGET):
 
                 base_input = self.alg.getParameterFromName(output.base_input)
                 if isinstance(base_input, ParameterVector):
-                    layers = dataobjects.getVectorLayers(base_input.shapetype)
+                    layers = dataobjects.getVectorLayers(base_input.datatype)
                 else:
                     layers = dataobjects.getTables()
                 if len(layers) > 0:
@@ -274,7 +275,7 @@ class ParametersPanel(BASE, WIDGET):
     def buttonToggled(self, value):
         if value:
             sender = self.sender()
-            for button in self.iterateButtons.values():
+            for button in list(self.iterateButtons.values()):
                 if button is not sender:
                     button.setChecked(False)
 
@@ -300,7 +301,7 @@ class ParametersPanel(BASE, WIDGET):
         elif isinstance(param, ParameterVector):
             if self.somethingDependsOnThisParameter(param) or self.alg.allowOnlyOpenedLayers:
                 item = QComboBox()
-                layers = dataobjects.getVectorLayers(param.shapetype)
+                layers = dataobjects.getVectorLayers(param.datatype)
                 layers.sort(key=lambda lay: lay.name())
                 if param.optional:
                     item.addItem(self.NOT_SELECTED, None)
@@ -309,7 +310,7 @@ class ParametersPanel(BASE, WIDGET):
                 item.currentIndexChanged.connect(self.updateDependentFields)
                 item.name = param.name
             else:
-                layers = dataobjects.getVectorLayers(param.shapetype)
+                layers = dataobjects.getVectorLayers(param.datatype)
                 items = []
                 if param.optional:
                     items.append((self.NOT_SELECTED, None))
@@ -361,7 +362,7 @@ class ParametersPanel(BASE, WIDGET):
             items.append(param)
             parent = self.alg.getParameterFromName(param.parent)
             if isinstance(parent, ParameterVector):
-                layers = dataobjects.getVectorLayers(parent.shapetype)
+                layers = dataobjects.getVectorLayers(parent.datatype)
             else:
                 layers = dataobjects.getTables()
             if len(layers) > 0:
@@ -380,12 +381,12 @@ class ParametersPanel(BASE, WIDGET):
         elif isinstance(param, ParameterFile):
             item = FileSelectionPanel(param.isFolder, param.ext)
         elif isinstance(param, ParameterMultipleInput):
-            if param.datatype == ParameterMultipleInput.TYPE_FILE:
-                item = MultipleInputPanel(datatype=ParameterMultipleInput.TYPE_FILE)
+            if param.datatype == dataobjects.TYPE_FILE:
+                item = MultipleInputPanel(datatype=dataobjects.TYPE_FILE)
             else:
-                if param.datatype == ParameterMultipleInput.TYPE_RASTER:
+                if param.datatype == dataobjects.TYPE_RASTER:
                     options = dataobjects.getRasterLayers(sorting=False)
-                elif param.datatype == ParameterMultipleInput.TYPE_VECTOR_ANY:
+                elif param.datatype == dataobjects.TYPE_VECTOR_ANY:
                     options = dataobjects.getVectorLayers(sorting=False)
                 else:
                     options = dataobjects.getVectorLayers([param.datatype], sorting=False)
@@ -413,7 +414,7 @@ class ParametersPanel(BASE, WIDGET):
             else:
                 item = QLineEdit()
                 if param.default:
-                    item.setText(unicode(param.default))
+                    item.setText(str(param.default))
         elif isinstance(param, ParameterGeometryPredicate):
             item = GeometryPredicateSelectionPanel(param.enabledPredicates)
             if param.left:
@@ -434,7 +435,7 @@ class ParametersPanel(BASE, WIDGET):
         else:
             item = QLineEdit()
             if param.default:
-                item.setText(unicode(param.default))
+                item.setText(str(param.default))
 
         return item
 
@@ -473,7 +474,7 @@ class ParametersPanel(BASE, WIDGET):
         fieldNames = set()
         for field in layer.fields():
             if not fieldTypes or field.type() in fieldTypes:
-                fieldNames.add(unicode(field.name()))
+                fieldNames.add(str(field.name()))
         return sorted(list(fieldNames), cmp=locale.strcoll)
 
     def somethingDependsOnThisParameter(self, parent):

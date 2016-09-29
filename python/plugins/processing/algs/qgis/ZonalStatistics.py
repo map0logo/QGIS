@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'August 2013'
@@ -66,12 +67,12 @@ class ZonalStatistics(GeoAlgorithm):
                                           self.tr('Raster band'), 1, 999, 1))
         self.addParameter(ParameterVector(self.INPUT_VECTOR,
                                           self.tr('Vector layer containing zones'),
-                                          [ParameterVector.VECTOR_TYPE_POLYGON]))
+                                          [dataobjects.TYPE_VECTOR_POLYGON]))
         self.addParameter(ParameterString(self.COLUMN_PREFIX,
                                           self.tr('Output column prefix'), '_'))
         self.addParameter(ParameterBoolean(self.GLOBAL_EXTENT,
                                            self.tr('Load whole raster in memory')))
-        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Zonal statistics')))
+        self.addOutput(OutputVector(self.OUTPUT_LAYER, self.tr('Zonal statistics'), datatype=[dataobjects.TYPE_VECTOR_POLYGON]))
 
     def processAlgorithm(self, progress):
         """ Based on code by Matthew Perry
@@ -80,7 +81,7 @@ class ZonalStatistics(GeoAlgorithm):
 
         layer = dataobjects.getObjectFromUri(self.getParameterValue(self.INPUT_VECTOR))
 
-        rasterPath = unicode(self.getParameterValue(self.INPUT_RASTER))
+        rasterPath = str(self.getParameterValue(self.INPUT_RASTER))
         bandNumber = self.getParameterValue(self.RASTER_BAND)
         columnPrefix = self.getParameterValue(self.COLUMN_PREFIX)
         useGlobalExtent = self.getParameterValue(self.GLOBAL_EXTENT)

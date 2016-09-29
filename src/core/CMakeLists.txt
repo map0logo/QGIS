@@ -42,8 +42,9 @@ SET(QGIS_CORE_SRCS
   symbology-ng/qgssymbollayerutils.cpp
   symbology-ng/qgssymbologyconversion.cpp
   symbology-ng/qgssymbol.cpp
-  symbology-ng/qgsvectorcolorramp.cpp
   symbology-ng/qgsvectorfieldsymbollayer.cpp
+
+  simplify/effectivearea.cpp
 
   diagram/qgsdiagram.cpp
   diagram/qgshistogramdiagram.cpp
@@ -81,11 +82,13 @@ SET(QGIS_CORE_SRCS
   qgsactionmanager.cpp
   qgsaggregatecalculator.cpp
   qgsattributetableconfig.cpp
+  qgsattributeeditorelement.cpp
   qgsbrowsermodel.cpp
   qgscachedfeatureiterator.cpp
   qgscacheindex.cpp
   qgscacheindexfeatureid.cpp
   qgsclipper.cpp
+  qgscolorramp.cpp
   qgscolorscheme.cpp
   qgscolorschemeregistry.cpp
   qgsconditionalstyle.cpp
@@ -137,6 +140,8 @@ SET(QGIS_CORE_SRCS
   qgsmaphittest.cpp
   qgsmaplayer.cpp
   qgsmaplayerlegend.cpp
+  qgsmaplayermodel.cpp
+  qgsmaplayerproxymodel.cpp
   qgsmaplayerregistry.cpp
   qgsmaplayerstylemanager.cpp
   qgsmaprenderercache.cpp
@@ -159,6 +164,7 @@ SET(QGIS_CORE_SRCS
   qgsofflineediting.cpp
   qgsogcutils.cpp
   qgsogrutils.cpp
+  qgsoptionalexpression.cpp
   qgsowsconnection.cpp
   qgspaintenginehack.cpp
   qgspainting.cpp
@@ -171,8 +177,6 @@ SET(QGIS_CORE_SRCS
   qgsprojectfiletransform.cpp
   qgsprojectproperty.cpp
   qgsprojectversion.cpp
-  qgsprovidercountcalcevent.cpp
-  qgsproviderextentcalcevent.cpp
   qgsprovidermetadata.cpp
   qgsproviderregistry.cpp
   qgspythonrunner.cpp
@@ -229,8 +233,6 @@ SET(QGIS_CORE_SRCS
   composer/qgsaddremovemultiframecommand.cpp
   composer/qgsatlascomposition.cpp
   composer/qgscomposerarrow.cpp
-  composer/qgscomposerattributetable.cpp
-  composer/qgscomposerattributetablemodel.cpp
   composer/qgscomposerattributetablemodelv2.cpp
   composer/qgscomposerattributetablev2.cpp
   composer/qgscomposereffect.cpp
@@ -258,7 +260,6 @@ SET(QGIS_CORE_SRCS
   composer/qgscomposernodesitem.cpp
   composer/qgscomposerpolygon.cpp
   composer/qgscomposerpolyline.cpp
-  composer/qgscomposertable.cpp
   composer/qgscomposertablecolumn.cpp
   composer/qgscomposertablev2.cpp
   composer/qgscomposertexttable.cpp
@@ -351,7 +352,6 @@ SET(QGIS_CORE_SRCS
   geometry/qgspolygon.cpp
   geometry/qgswkbptr.cpp
   geometry/qgswkbtypes.cpp
-  geometry/qgswkbsimplifierptr.cpp
 
   ${CMAKE_CURRENT_BINARY_DIR}/qgscontexthelp_texts.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/qgsexpression_texts.cpp
@@ -388,17 +388,11 @@ IF(ENABLE_MODELTEST)
     ../../tests/qt_modeltest/modeltest.h
     ../../tests/qt_modeltest/dynamictreemodel.h
   )
-  QT4_WRAP_CPP(MODELTEST_MOC_SRCS ${MODELTEST_MOC_HDRS})
+  QT5_WRAP_CPP(MODELTEST_MOC_SRCS ${MODELTEST_MOC_HDRS})
   SET(QGIS_CORE_SRCS ${QGIS_CORE_SRCS}
     ${MODELTEST_SRCS} ${MODELTEST_MOC_SRCS}
   )
 ENDIF(ENABLE_MODELTEST)
-
-IF (NOT QT5_BUILD)
-  SET(QGIS_CORE_SRCS ${QGIS_CORE_SRCS}
-    qgshttptransaction.cpp
-  )
-ENDIF (NOT QT5_BUILD)
 
 IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # spatialindex headers produce warnings
@@ -449,11 +443,12 @@ SET(QGIS_CORE_MOC_HDRS
   qgsapplication.h
   qgsbrowsermodel.h
   qgscontexthelp.h
+  qgscoordinatereferencesystem.h
   qgscredentials.h
   qgsdataitem.h
   qgsdataprovider.h
   qgsdbfilterproxymodel.h
-  qgseditformconfig.h
+  qgsfeature.h
   qgsfeedback.h
   qgsfield.h
   qgsgeometryvalidator.h
@@ -461,6 +456,8 @@ SET(QGIS_CORE_MOC_HDRS
   qgsgmlschema.h
   qgsmaplayer.h
   qgsmaplayerlegend.h
+  qgsmaplayermodel.h
+  qgsmaplayerproxymodel.h
   qgsmaplayerregistry.h
   qgsmaplayerstylemanager.h
   qgsmaprenderercache.h
@@ -501,8 +498,6 @@ SET(QGIS_CORE_MOC_HDRS
   composer/qgsaddremoveitemcommand.h
   composer/qgsatlascomposition.h
   composer/qgscomposerarrow.h
-  composer/qgscomposerattributetable.h
-  composer/qgscomposerattributetablemodel.h
   composer/qgscomposerattributetablemodelv2.h
   composer/qgscomposerattributetablev2.h
   composer/qgscomposereffect.h
@@ -527,7 +522,6 @@ SET(QGIS_CORE_MOC_HDRS
   composer/qgscomposerpolygon.h
   composer/qgscomposerpolyline.h
   composer/qgscomposertablecolumn.h
-  composer/qgscomposertable.h
   composer/qgscomposertablev2.h
   composer/qgscomposertexttable.h
   composer/qgscomposition.h
@@ -560,11 +554,10 @@ IF (NOT WITH_QTWEBKIT)
   )
 ENDIF(NOT WITH_QTWEBKIT)
 
-IF (NOT QT5_BUILD)
-  SET(QGIS_CORE_MOC_HDRS ${QGIS_CORE_MOC_HDRS}
-    qgshttptransaction.h
-  )
-ENDIF (NOT QT5_BUILD)
+# TODO - update for Qt5
+#SET(QGIS_CORE_MOC_HDRS ${QGIS_CORE_MOC_HDRS}
+#    qgshttptransaction.h
+#)
 
 IF (WITH_INTERNAL_QEXTSERIALPORT)
   SET(QGIS_CORE_MOC_HDRS ${QGIS_CORE_MOC_HDRS}
@@ -579,7 +572,7 @@ IF (QT_MOBILITY_LOCATION_FOUND OR Qt5Positioning_FOUND)
   )
 ENDIF (QT_MOBILITY_LOCATION_FOUND OR Qt5Positioning_FOUND)
 
-QT4_WRAP_CPP(QGIS_CORE_MOC_SRCS ${QGIS_CORE_MOC_HDRS})
+QT5_WRAP_CPP(QGIS_CORE_MOC_SRCS ${QGIS_CORE_MOC_HDRS})
 
 IF(MSVC)
   SET_SOURCE_FILES_PROPERTIES(${QGIS_CORE_MOC_SRCS} PROPERTIES COMPILE_FLAGS "/wd4512 /wd4996" )
@@ -603,26 +596,23 @@ SET(QGIS_CORE_HDRS
   qgsaggregatecalculator.h
   qgsannotation.h
   qgsattributetableconfig.h
-  qgsattributeaction.h
+  qgsattributeeditorelement.h
   qgscachedfeatureiterator.h
   qgscacheindex.h
   qgscacheindexfeatureid.h
   qgsclipper.h
+  qgscolorramp.h
   qgscolorscheme.h
   qgscolorschemeregistry.h
   qgsconnectionpool.h
   qgscontexthelp.h
   qgsconditionalstyle.h
-  qgscoordinatereferencesystem.h  
-  qgscoordinatereferencesystem_p.h
   qgscoordinatetransform.h
-  qgscoordinatetransform_p.h
   qgscoordinateutils.h
   qgscrscache.h
   qgscsexception.h
   qgsdartmeasurement.h
   qgsdatadefined.h
-  qgsdatadefined_p.h
   qgsdataitem.h
   qgsdataitemprovider.h
   qgsdataitemproviderregistry.h
@@ -632,7 +622,9 @@ SET(QGIS_CORE_HDRS
   qgsdbfilterproxymodel.h
   qgsdiagramrenderer.h
   qgsdistancearea.h
+  qgseditformconfig.h
   qgseditorwidgetconfig.h
+  qgseditorwidgetsetup.h
   qgsfeaturefilterprovider.h
   qgserror.h
   qgsexception.h
@@ -640,12 +632,9 @@ SET(QGIS_CORE_HDRS
   qgsexpressioncontext.h
   qgsexpressioncontextgenerator.h
   qgsexpressionfieldbuffer.h
-  qgsfeature.h
-  qgsfeature_p.h
   qgsfeatureiterator.h
   qgsfeaturerequest.h
   qgsfeaturestore.h
-  qgsfield_p.h
   qgsfontutils.h
   qgsgeometrycache.h
   qgshistogram.h
@@ -660,6 +649,7 @@ SET(QGIS_CORE_HDRS
   qgslegendsettings.h
   qgslogger.h
   qgsmaphittest.h
+  qgsmaplayerdependency.h
   qgsmaplayerrenderer.h
   qgsmaplayerstylemanager.h
   qgsmapsettings.h
@@ -670,6 +660,8 @@ SET(QGIS_CORE_HDRS
   qgsmultirenderchecker.h
   qgsobjectcustomproperties.h
   qgsogcutils.h
+  qgsoptional.h
+  qgsoptionalexpression.h
   qgsowsconnection.h
   qgspaintenginehack.h
   qgspainting.h
@@ -681,8 +673,6 @@ SET(QGIS_CORE_HDRS
   qgsprojectfiletransform.h
   qgsprojectproperty.h
   qgsprojectversion.h
-  qgsprovidercountcalcevent.h
-  qgsproviderextentcalcevent.h
   qgsprovidermetadata.h
   qgsproviderregistry.h
   qgspythonrunner.h
@@ -756,7 +746,6 @@ SET(QGIS_CORE_HDRS
   composer/qgscomposerlegenditem.h
   composer/qgscomposerlegendstyle.h
   composer/qgscomposermultiframecommand.h
-  composer/qgscomposertable.h
   composer/qgscomposertexttable.h
   composer/qgsdoubleboxscalebarstyle.h
   composer/qgsnumericscalebarstyle.h
@@ -826,7 +815,6 @@ SET(QGIS_CORE_HDRS
   symbology-ng/qgssymbollayerutils.h
   symbology-ng/qgssymbologyconversion.h
   symbology-ng/qgssymbol.h
-  symbology-ng/qgsvectorcolorramp.h
   symbology-ng/qgsvectorfieldsymbollayer.h
   symbology-ng/qgsgeometrygeneratorsymbollayer.h
 
@@ -856,7 +844,6 @@ SET(QGIS_CORE_HDRS
   geometry/qgspolygon.h
   geometry/qgssurface.h
   geometry/qgswkbptr.h
-  geometry/qgswkbsimplifierptr.h
   geometry/qgswkbtypes.h
 )
 

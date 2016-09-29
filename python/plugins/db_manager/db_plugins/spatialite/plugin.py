@@ -19,6 +19,7 @@ email                : brush.tyler@gmail.com
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import str
 
 # this will disable the dbplugin if the connector raise an ImportError
 from .connector import SpatiaLiteDBConnector
@@ -89,7 +90,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
     def addConnectionActionSlot(self, item, action, parent, index):
         QApplication.restoreOverrideCursor()
         try:
-            filename = QFileDialog.getOpenFileName(parent, "Choose Sqlite/Spatialite/Geopackage file")
+            filename, selected_filter = QFileDialog.getOpenFileName(parent, "Choose Sqlite/Spatialite/Geopackage file")
             if not filename:
                 return
         finally:
@@ -99,7 +100,7 @@ class SpatiaLiteDBPlugin(DBPlugin):
         uri = QgsDataSourceUri()
         uri.setDatabase(filename)
         self.addConnection(conn_name, uri)
-        index.internalPointer().itemChanged.emit()
+        index.internalPointer().itemChanged()
 
 
 class SLDatabase(Database):
@@ -153,7 +154,7 @@ class SLDatabase(Database):
         self.database().refresh()
 
     def runAction(self, action):
-        action = unicode(action)
+        action = str(action)
 
         if action.startswith("vacuum/"):
             if action == "vacuum/run":

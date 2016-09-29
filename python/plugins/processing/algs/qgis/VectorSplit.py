@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'September 2014'
@@ -52,7 +53,7 @@ class VectorSplit(GeoAlgorithm):
         self.name, self.i18n_name = self.trAlgorithm('Split vector layer')
         self.group, self.i18n_group = self.trAlgorithm('Vector general tools')
         self.addParameter(ParameterVector(self.INPUT,
-                                          self.tr('Input layer'), [ParameterVector.VECTOR_TYPE_ANY]))
+                                          self.tr('Input layer')))
         self.addParameter(ParameterTableField(self.FIELD,
                                               self.tr('Unique ID field'), self.INPUT))
 
@@ -77,7 +78,7 @@ class VectorSplit(GeoAlgorithm):
         total = 100.0 / len(uniqueValues)
 
         for current, i in enumerate(uniqueValues):
-            fName = u'{0}_{1}.shp'.format(baseName, unicode(i).strip())
+            fName = u'{0}_{1}.shp'.format(baseName, str(i).strip())
 
             writer = vector.VectorWriter(fName, None, fields, geomType, crs)
             for f in vector.features(layer):

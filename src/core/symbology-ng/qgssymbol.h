@@ -46,6 +46,8 @@ class QgsFillSymbolLayer;
 class QgsDataDefined;
 class QgsSymbolRenderContext;
 class QgsFeatureRenderer;
+class QgsCurve;
+class QgsPolygonV2;
 
 typedef QList<QgsSymbolLayer*> QgsSymbolLayerList;
 
@@ -78,11 +80,13 @@ class CORE_EXPORT QgsSymbol
       ScaleDiameter  //!< Calculate scale by the diameter
     };
 
+
+    //! Flags controlling behaviour of symbols during rendering
     enum RenderHint
     {
-      DataDefinedSizeScale = 1,
-      DataDefinedRotation = 2
+      DynamicRotation = 2, //!< Rotation of symbol may be changed during rendering and symbol should not be cached
     };
+    Q_DECLARE_FLAGS( RenderHints, RenderHint )
 
     virtual ~QgsSymbol();
 
@@ -188,6 +192,11 @@ class CORE_EXPORT QgsSymbol
 
     QString dump() const;
 
+    /**
+     * Get a deep copy of this symbol.
+     * Needs to be reimplemented by subclasses.
+     * Ownership is transferred to the caller.
+     */
     virtual QgsSymbol* clone() const = 0;
 
     void toSld( QDomDocument &doc, QDomElement &element, QgsStringMap props ) const;
@@ -218,8 +227,15 @@ class CORE_EXPORT QgsSymbol
     //! Set alpha transparency 1 for opaque, 0 for invisible
     void setAlpha( qreal alpha ) { mAlpha = alpha; }
 
-    void setRenderHints( int hints ) { mRenderHints = hints; }
-    int renderHints() const { return mRenderHints; }
+    /** Sets rendering hint flags for the symbol.
+     * @see renderHints()
+     */
+    void setRenderHints( RenderHints hints ) { mRenderHints = hints; }
+
+    /** Returns the rendering hint flags for the symbol.
+     * @see setRenderHints()
+     */
+    RenderHints renderHints() const { return mRenderHints; }
 
     /** Sets whether features drawn by the symbol should be clipped to the render context's
      * extent. If this option is enabled then features which are partially outside the extent
@@ -276,40 +292,39 @@ class CORE_EXPORT QgsSymbol
     /**
      * Creates a point in screen coordinates from a QgsPointV2 in map coordinates
      */
-    static inline void _getPoint( QPointF& pt, QgsRenderContext& context, const QgsPointV2* point )
+    static inline QPointF _getPoint( QgsRenderContext& context, const QgsPointV2& point )
     {
+      QPointF pt;
       if ( context.coordinateTransform().isValid() )
       {
-        double x = point->x();
-        double y = point->y();
+        double x = point.x();
+        double y = point.y();
         double z = 0.0;
         context.coordinateTransform().transformInPlace( x, y, z );
         pt = QPointF( x, y );
 
       }
       else
-        pt = point->toQPointF();
+        pt = point.toQPointF();
 
       context.mapToPixel().transformInPlace( pt.rx(), pt.ry() );
+      return pt;
     }
 
     /**
-     * Creates a point in screen coordinates from a wkb string in map
-     * coordinates
+     * Creates a line string in screen coordinates from a QgsCurve in map coordinates
      */
-    static QgsConstWkbPtr _getPoint( QPointF& pt, QgsRenderContext& context, QgsConstWkbPtr& wkb );
+    static QPolygonF _getLineString( QgsRenderContext& context, const QgsCurve& curve, bool clipToExtent = true );
 
     /**
-     * Creates a line string in screen coordinates from a wkb string in map
-     * coordinates
+     * Creates a polygon ring in screen coordinates from a QgsCurve in map coordinates
      */
-    static QgsConstWkbPtr _getLineString( QPolygonF& pts, QgsRenderContext& context, QgsConstWkbPtr& wkb, bool clipToExtent = true );
+    static QPolygonF _getPolygonRing( QgsRenderContext& context, const QgsCurve& curve, bool clipToExtent );
 
     /**
-     * Creates a polygon in screen coordinates from a wkb string in map
-     * coordinates
+     * Creates a polygon in screen coordinates from a QgsPolygon in map coordinates
      */
-    static QgsConstWkbPtr _getPolygon( QPolygonF& pts, QList<QPolygonF>& holes, QgsRenderContext& context, QgsConstWkbPtr& wkb, bool clipToExtent = true );
+    static void _getPolygon( QPolygonF& pts, QList<QPolygonF>& holes, QgsRenderContext& context, const QgsPolygonV2& polygon, bool clipToExtent = true );
 
     /**
      * Retrieve a cloned list of all layers that make up this symbol.
@@ -328,11 +343,6 @@ class CORE_EXPORT QgsSymbol
      */
     void renderUsingLayer( QgsSymbolLayer* layer, QgsSymbolRenderContext& context );
 
-    //! check whether a symbol layer type can be used within the symbol
-    //! (marker-marker, line-line, fill-fill/line)
-    //! @deprecated since 2.14, use QgsSymbolLayer::isCompatibleWithSymbol instead
-    Q_DECL_DEPRECATED bool isSymbolLayerCompatible( SymbolType layerType );
-
     //! Render editing vertex marker at specified point
     //! @note added in QGIS 2.16
     void renderVertexMarker( QPointF pt, QgsRenderContext& context, int currentVertexMarkerType, int currentVertexMarkerSize );
@@ -343,7 +353,7 @@ class CORE_EXPORT QgsSymbol
     /** Symbol opacity (in the range 0 - 1)*/
     qreal mAlpha;
 
-    int mRenderHints;
+    RenderHints mRenderHints;
     bool mClipFeaturesToExtent;
 
     const QgsVectorLayer* mLayer; //current vectorlayer
@@ -355,6 +365,8 @@ class CORE_EXPORT QgsSymbol
     Q_DISABLE_COPY( QgsSymbol )
 
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS( QgsSymbol::RenderHints )
 
 ///////////////////////
 
@@ -370,12 +382,12 @@ class CORE_EXPORT QgsSymbolRenderContext
      * @param u
      * @param alpha
      * @param selected set to true if symbol should be drawn in a "selected" state
-     * @param renderHints
+     * @param renderHints flags controlling rendering behaviour
      * @param f
      * @param fields
      * @param mapUnitScale
      */
-    QgsSymbolRenderContext( QgsRenderContext& c, QgsUnitTypes::RenderUnit u, qreal alpha = 1.0, bool selected = false, int renderHints = 0, const QgsFeature* f = nullptr, const QgsFields& fields = QgsFields(), const QgsMapUnitScale& mapUnitScale = QgsMapUnitScale() );
+    QgsSymbolRenderContext( QgsRenderContext& c, QgsUnitTypes::RenderUnit u, qreal alpha = 1.0, bool selected = false, QgsSymbol::RenderHints renderHints = 0, const QgsFeature* f = nullptr, const QgsFields& fields = QgsFields(), const QgsMapUnitScale& mapUnitScale = QgsMapUnitScale() );
     ~QgsSymbolRenderContext();
 
     QgsRenderContext& renderContext() { return mRenderContext; }
@@ -405,8 +417,15 @@ class CORE_EXPORT QgsSymbolRenderContext
     bool selected() const { return mSelected; }
     void setSelected( bool selected ) { mSelected = selected; }
 
-    int renderHints() const { return mRenderHints; }
-    void setRenderHints( int hints ) { mRenderHints = hints; }
+    /** Returns the rendering hint flags for the symbol.
+     * @see setRenderHints()
+     */
+    QgsSymbol::RenderHints renderHints() const { return mRenderHints; }
+
+    /** Sets rendering hint flags for the symbol.
+     * @see renderHints()
+     */
+    void setRenderHints( QgsSymbol::RenderHints hints ) { mRenderHints = hints; }
 
     void setFeature( const QgsFeature* f ) { mFeature = f; }
     //! Current feature being rendered - may be null
@@ -464,7 +483,7 @@ class CORE_EXPORT QgsSymbolRenderContext
     QgsMapUnitScale mMapUnitScale;
     qreal mAlpha;
     bool mSelected;
-    int mRenderHints;
+    QgsSymbol::RenderHints mRenderHints;
     const QgsFeature* mFeature; //current feature
     QgsFields mFields;
     int mGeometryPartCount;

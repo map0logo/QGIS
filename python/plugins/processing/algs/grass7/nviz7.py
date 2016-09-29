@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'August 2012'
@@ -65,15 +68,15 @@ class nviz7(GeoAlgorithm):
         self.addParameter(ParameterMultipleInput(
             nviz7.ELEVATION,
             self.tr('Raster file(s) for elevation'),
-            ParameterMultipleInput.TYPE_RASTER, True))
+            dataobjects.TYPE_RASTER, True))
         self.addParameter(ParameterMultipleInput(
             nviz7.VECTOR,
             self.tr('Vector lines/areas overlay file(s)'),
-            ParameterMultipleInput.TYPE_VECTOR_ANY, True))
+            dataobjects.TYPE_VECTOR_ANY, True))
         self.addParameter(ParameterMultipleInput(
             nviz7.COLOR,
             self.tr('Raster file(s) for color'),
-            ParameterMultipleInput.TYPE_RASTER, True))
+            dataobjects.TYPE_RASTER, True))
         self.addParameter(ParameterExtent(
             nviz7.GRASS_REGION_EXTENT_PARAMETER,
             self.tr('GRASS region extent')))
@@ -89,18 +92,18 @@ class nviz7(GeoAlgorithm):
         color = self.getParameterValue(self.COLOR)
 
         region = \
-            unicode(self.getParameterValue(self.GRASS_REGION_EXTENT_PARAMETER))
+            str(self.getParameterValue(self.GRASS_REGION_EXTENT_PARAMETER))
         regionCoords = region.split(',')
         command = 'g.region '
-        command += 'n=' + unicode(regionCoords[3])
-        command += ' s=' + unicode(regionCoords[2])
-        command += ' e=' + unicode(regionCoords[1])
-        command += ' w=' + unicode(regionCoords[0])
+        command += 'n=' + str(regionCoords[3])
+        command += ' s=' + str(regionCoords[2])
+        command += ' e=' + str(regionCoords[1])
+        command += ' w=' + str(regionCoords[0])
         cellsize = self.getParameterValue(self.GRASS_REGION_CELLSIZE_PARAMETER)
         if cellsize:
-            command += ' res=' + unicode(cellsize)
+            command += ' res=' + str(cellsize)
         else:
-            command += ' res=' + unicode(self.getDefaultCellsize())
+            command += ' res=' + str(self.getDefaultCellsize())
         commands.append(command)
 
         command = 'nviz7'
@@ -132,8 +135,8 @@ class nviz7(GeoAlgorithm):
         Grass7Utils.executeGrass7(commands, progress)
 
     def getTempFilename(self):
-        filename = 'tmp' + unicode(time.time()).replace('.', '') \
-            + unicode(getNumExportedLayers())
+        filename = 'tmp' + str(time.time()).replace('.', '') \
+            + str(getNumExportedLayers())
         return filename
 
     def exportVectorLayer(self, layer):

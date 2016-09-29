@@ -44,9 +44,10 @@ QgsField::QgsField( QString nam, QString typ, int len, int prec, bool num,
 }
 #endif
 QgsField::QgsField( const QString& name, QVariant::Type type,
-                    const QString& typeName, int len, int prec, const QString& comment )
+                    const QString& typeName, int len, int prec, const QString& comment,
+                    QVariant::Type subType )
 {
-  d = new QgsFieldPrivate( name, type, typeName, len, prec, comment );
+  d = new QgsFieldPrivate( name, type, subType, typeName, len, prec, comment );
 }
 
 QgsField::QgsField( const QgsField &other )
@@ -86,9 +87,22 @@ QString QgsField::name() const
   return d->name;
 }
 
+QString QgsField::displayName() const
+{
+  if ( !d->alias.isEmpty() )
+    return d->alias;
+  else
+    return d->name;
+}
+
 QVariant::Type QgsField::type() const
 {
   return d->type;
+}
+
+QVariant::Type QgsField::subType() const
+{
+  return d->subType;
 }
 
 QString QgsField::typeName() const
@@ -132,6 +146,11 @@ void QgsField::setType( QVariant::Type type )
   d->type = type;
 }
 
+void QgsField::setSubType( QVariant::Type subType )
+{
+  d->subType = subType;
+}
+
 void QgsField::setTypeName( const QString& typeName )
 {
   d->typeName = typeName;
@@ -149,6 +168,26 @@ void QgsField::setPrecision( int precision )
 void QgsField::setComment( const QString& comment )
 {
   d->comment = comment;
+}
+
+QString QgsField::defaultValueExpression() const
+{
+  return d->defaultValueExpression;
+}
+
+void QgsField::setDefaultValueExpression( const QString& expression )
+{
+  d->defaultValueExpression = expression;
+}
+
+QString QgsField::alias() const
+{
+  return d->alias;
+}
+
+void QgsField::setAlias( const QString& alias )
+{
+  d->alias = alias;
 }
 
 /***************************************************************************
@@ -238,6 +277,16 @@ bool QgsField::convertCompatible( QVariant& v ) const
   return true;
 }
 
+void QgsField::setEditorWidgetSetup( const QgsEditorWidgetSetup& v )
+{
+  d->editorWidgetSetup = v;
+}
+
+const QgsEditorWidgetSetup& QgsField::editorWidgetSetup() const
+{
+  return d->editorWidgetSetup;
+}
+
 /***************************************************************************
  * This class is considered CRITICAL and any change MUST be accompanied with
  * full unit tests in testqgsfield.cpp.
@@ -252,20 +301,26 @@ QDataStream& operator<<( QDataStream& out, const QgsField& field )
   out << field.length();
   out << field.precision();
   out << field.comment();
+  out << field.alias();
+  out << field.defaultValueExpression();
+  out << static_cast< quint32 >( field.subType() );
   return out;
 }
 
 QDataStream& operator>>( QDataStream& in, QgsField& field )
 {
-  quint32 type, length, precision;
-  QString name, typeName, comment;
-  in >> name >> type >> typeName >> length >> precision >> comment;
+  quint32 type, subType, length, precision;
+  QString name, typeName, comment, alias, defaultValueExpression;
+  in >> name >> type >> typeName >> length >> precision >> comment >> alias >> defaultValueExpression >> subType;
   field.setName( name );
   field.setType( static_cast< QVariant::Type >( type ) );
   field.setTypeName( typeName );
   field.setLength( static_cast< int >( length ) );
   field.setPrecision( static_cast< int >( precision ) );
   field.setComment( comment );
+  field.setAlias( alias );
+  field.setDefaultValueExpression( defaultValueExpression );
+  field.setSubType( static_cast< QVariant::Type >( subType ) );
   return in;
 }
 
@@ -283,12 +338,12 @@ QgsFields::QgsFields()
   d = new QgsFieldsPrivate();
 }
 
-QgsFields::QgsFields( const QgsFields &other )
+QgsFields::QgsFields( const QgsFields& other )
     : d( other.d )
 {
 }
 
-QgsFields &QgsFields::operator =( const QgsFields & other )
+QgsFields& QgsFields::operator =( const QgsFields & other )
 {
   d = other.d;
   return *this;

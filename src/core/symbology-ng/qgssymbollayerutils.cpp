@@ -18,7 +18,7 @@
 #include "qgssymbollayer.h"
 #include "qgssymbollayerregistry.h"
 #include "qgssymbol.h"
-#include "qgsvectorcolorramp.h"
+#include "qgscolorramp.h"
 #include "qgsexpression.h"
 #include "qgspainteffect.h"
 #include "qgspainteffectregistry.h"
@@ -421,7 +421,7 @@ QString QgsSymbolLayerUtils::encodeSldUom( QgsUnitTypes::RenderUnit unit, double
       // pixel is the SLD default uom. The "standardized rendering pixel
       // size" is defined to be 0.28mm × 0.28mm (millimeters).
       if ( scaleFactor )
-        *scaleFactor = 0.28;  // from millimeters to pixels
+        *scaleFactor = 1 / 0.28;  // from millimeters to pixels
 
       // http://www.opengeospatial.org/sld/units/pixel
       return QString();
@@ -619,12 +619,12 @@ QIcon QgsSymbolLayerUtils::symbolLayerPreviewIcon( QgsSymbolLayer* layer, QgsUni
   return QIcon( pixmap );
 }
 
-QIcon QgsSymbolLayerUtils::colorRampPreviewIcon( QgsVectorColorRamp* ramp, QSize size )
+QIcon QgsSymbolLayerUtils::colorRampPreviewIcon( QgsColorRamp* ramp, QSize size )
 {
   return QIcon( colorRampPreviewPixmap( ramp, size ) );
 }
 
-QPixmap QgsSymbolLayerUtils::colorRampPreviewPixmap( QgsVectorColorRamp* ramp, QSize size )
+QPixmap QgsSymbolLayerUtils::colorRampPreviewPixmap( QgsColorRamp* ramp, QSize size )
 {
   QPixmap pixmap( size );
   pixmap.fill( Qt::transparent );
@@ -767,22 +767,6 @@ QList<QPolygonF> offsetLine( QPolygonF polyline, double dist, QgsWkbTypes::Geome
   // returns original polyline when 'GEOSOffsetCurve' fails!
   resultLine.append( polyline );
   return resultLine;
-}
-
-QList<QPolygonF> offsetLine( const QPolygonF& polyline, double dist )
-{
-  QgsWkbTypes::GeometryType geometryType = QgsWkbTypes::PointGeometry;
-  int pointCount = polyline.count();
-
-  if ( pointCount > 3 && qgsDoubleNear( polyline[ 0 ].x(), polyline[ pointCount - 1 ].x() ) && qgsDoubleNear( polyline[ 0 ].y(), polyline[ pointCount - 1 ].y() ) )
-  {
-    geometryType = QgsWkbTypes::PolygonGeometry;
-  }
-  else if ( pointCount > 1 )
-  {
-    geometryType = QgsWkbTypes::LineGeometry;
-  }
-  return offsetLine( polyline, dist, geometryType );
 }
 
 /////
@@ -2051,13 +2035,6 @@ bool QgsSymbolLayerUtils::externalMarkerFromSld( QDomElement &element,
 }
 
 void QgsSymbolLayerUtils::wellKnownMarkerToSld( QDomDocument &doc, QDomElement &element,
-    const QString& name, const QColor& color, const QColor& borderColor,
-    double borderWidth, double size )
-{
-  wellKnownMarkerToSld( doc, element, name, color, borderColor, Qt::SolidLine, borderWidth, size );
-}
-
-void QgsSymbolLayerUtils::wellKnownMarkerToSld( QDomDocument &doc, QDomElement &element,
     const QString& name, const QColor& color, const QColor& borderColor, Qt::PenStyle borderStyle,
     double borderWidth, double size )
 {
@@ -2091,14 +2068,6 @@ void QgsSymbolLayerUtils::wellKnownMarkerToSld( QDomDocument &doc, QDomElement &
     sizeElem.appendChild( doc.createTextNode( qgsDoubleToString( size ) ) );
     element.appendChild( sizeElem );
   }
-}
-
-bool QgsSymbolLayerUtils::wellKnownMarkerFromSld( QDomElement &element,
-    QString &name, QColor &color, QColor &borderColor,
-    double &borderWidth, double &size )
-{
-  Qt::PenStyle borderStyle;
-  return wellKnownMarkerFromSld( element, name, color, borderColor, borderStyle, borderWidth, size );
 }
 
 bool QgsSymbolLayerUtils::wellKnownMarkerFromSld( QDomElement &element,
@@ -2153,7 +2122,7 @@ void QgsSymbolLayerUtils::createRotationElement( QDomDocument &doc, QDomElement 
   if ( !rotationFunc.isEmpty() )
   {
     QDomElement rotationElem = doc.createElement( "se:Rotation" );
-    createFunctionElement( doc, rotationElem, rotationFunc );
+    createExpressionElement( doc, rotationElem, rotationFunc );
     element.appendChild( rotationElem );
   }
 }
@@ -2174,7 +2143,7 @@ void QgsSymbolLayerUtils::createOpacityElement( QDomDocument &doc, QDomElement &
   if ( !alphaFunc.isEmpty() )
   {
     QDomElement opacityElem = doc.createElement( "se:Opacity" );
-    createFunctionElement( doc, opacityElem, alphaFunc );
+    createExpressionElement( doc, opacityElem, alphaFunc );
     element.appendChild( opacityElem );
   }
 }
@@ -2378,7 +2347,7 @@ void QgsSymbolLayerUtils::createGeometryElement( QDomDocument &doc, QDomElement 
    * like offset, centroid, ...
    */
 
-  createFunctionElement( doc, geometryElem, geomFunc );
+  createExpressionElement( doc, geometryElem, geomFunc );
 }
 
 bool QgsSymbolLayerUtils::geometryFromSldElement( QDomElement &element, QString &geomFunc )
@@ -2390,7 +2359,7 @@ bool QgsSymbolLayerUtils::geometryFromSldElement( QDomElement &element, QString 
   return functionFromSldElement( geometryElem, geomFunc );
 }
 
-bool QgsSymbolLayerUtils::createFunctionElement( QDomDocument &doc, QDomElement &element, const QString& function )
+bool QgsSymbolLayerUtils::createExpressionElement( QDomDocument &doc, QDomElement &element, const QString& function )
 {
   // let's use QgsExpression to generate the SLD for the function
   QgsExpression expr( function );
@@ -2400,6 +2369,22 @@ bool QgsSymbolLayerUtils::createFunctionElement( QDomDocument &doc, QDomElement 
     return false;
   }
   QDomElement filterElem = QgsOgcUtils::expressionToOgcExpression( expr, doc );
+  if ( !filterElem.isNull() )
+    element.appendChild( filterElem );
+  return true;
+}
+
+
+bool QgsSymbolLayerUtils::createFunctionElement( QDomDocument &doc, QDomElement &element, const QString& function )
+{
+  // let's use QgsExpression to generate the SLD for the function
+  QgsExpression expr( function );
+  if ( expr.hasParserError() )
+  {
+    element.appendChild( doc.createComment( "Parser Error: " + expr.parserErrorString() + " - Expression was: " + function ) );
+    return false;
+  }
+  QDomElement filterElem = QgsOgcUtils::expressionToOgcFilter( expr, doc );
   if ( !filterElem.isNull() )
     element.appendChild( filterElem );
   return true;
@@ -2665,7 +2650,7 @@ void QgsSymbolLayerUtils::clearSymbolMap( QgsSymbolMap& symbols )
 }
 
 
-QgsVectorColorRamp* QgsSymbolLayerUtils::loadColorRamp( QDomElement& element )
+QgsColorRamp* QgsSymbolLayerUtils::loadColorRamp( QDomElement& element )
 {
   QString rampType = element.attribute( "type" );
 
@@ -2673,13 +2658,15 @@ QgsVectorColorRamp* QgsSymbolLayerUtils::loadColorRamp( QDomElement& element )
   QgsStringMap props = QgsSymbolLayerUtils::parseProperties( element );
 
   if ( rampType == "gradient" )
-    return QgsVectorGradientColorRamp::create( props );
+    return QgsGradientColorRamp::create( props );
   else if ( rampType == "random" )
-    return QgsVectorRandomColorRamp::create( props );
+    return QgsLimitedRandomColorRamp::create( props );
   else if ( rampType == "colorbrewer" )
-    return QgsVectorColorBrewerColorRamp::create( props );
+    return QgsColorBrewerColorRamp::create( props );
   else if ( rampType == "cpt-city" )
     return QgsCptCityColorRamp::create( props );
+  else if ( rampType == "preset" )
+    return QgsPresetSchemeColorRamp::create( props );
   else
   {
     QgsDebugMsg( "unknown colorramp type " + rampType );
@@ -2688,7 +2675,7 @@ QgsVectorColorRamp* QgsSymbolLayerUtils::loadColorRamp( QDomElement& element )
 }
 
 
-QDomElement QgsSymbolLayerUtils::saveColorRamp( const QString& name, QgsVectorColorRamp* ramp, QDomDocument& doc )
+QDomElement QgsSymbolLayerUtils::saveColorRamp( const QString& name, QgsColorRamp* ramp, QDomDocument& doc )
 {
   QDomElement rampEl = doc.createElement( "colorramp" );
   rampEl.setAttribute( "type", ramp->type() );
@@ -2965,7 +2952,7 @@ QMimeData* QgsSymbolLayerUtils::colorListToMimeData( const QgsNamedColorList& co
 
 bool QgsSymbolLayerUtils::saveColorsToGpl( QFile &file, const QString& paletteName, const QgsNamedColorList& colors )
 {
-  if ( !file.open( QIODevice::ReadWrite ) )
+  if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
   {
     return false;
   }
@@ -3922,4 +3909,121 @@ QList<double> QgsSymbolLayerUtils::prettyBreaks( double minimum, double maximum,
   }
 
   return breaks;
+}
+
+double QgsSymbolLayerUtils::rescaleUom( double size, QgsUnitTypes::RenderUnit unit, const QgsStringMap& props )
+{
+  double scale = 1;
+  bool roundToUnit = false;
+  if ( unit == QgsUnitTypes::RenderUnknownUnit )
+  {
+    if ( props.contains( "uomScale" ) )
+    {
+      bool ok;
+      scale = props.value( "uomScale" ).toDouble( &ok );
+      if ( !ok )
+      {
+        return size;
+      }
+    }
+  }
+  else
+  {
+    if ( props.value( "uom" ) == "http://www.opengeospatial.org/se/units/metre" )
+    {
+      switch ( unit )
+      {
+        case QgsUnitTypes::RenderMillimeters:
+          scale = 0.001;
+          break;
+        case QgsUnitTypes::RenderPixels:
+          scale = 0.00028;
+          roundToUnit = true;
+          break;
+        default:
+          scale = 1;
+      }
+    }
+    else
+    {
+      // target is pixels
+      switch ( unit )
+      {
+        case QgsUnitTypes::RenderMillimeters:
+          scale = 1 / 0.28;
+          roundToUnit = true;
+          break;
+          // we don't have a good case for map units, as pixel values won't change based on zoom
+        default:
+          scale = 1;
+      }
+    }
+
+  }
+  double rescaled = size * scale;
+  // round to unit if the result is pixels to avoid a weird looking SLD (people often think
+  // of pixels as integers, even if SLD allows for float values in there
+  if ( roundToUnit )
+  {
+    rescaled = qRound( rescaled );
+  }
+  return rescaled;
+}
+
+QPointF QgsSymbolLayerUtils::rescaleUom( const QPointF& point, QgsUnitTypes::RenderUnit unit, const QgsStringMap& props )
+{
+  double x = rescaleUom( point.x(), unit, props );
+  double y = rescaleUom( point.y(), unit, props );
+  return QPointF( x, y );
+}
+
+QVector<qreal> QgsSymbolLayerUtils::rescaleUom( const QVector<qreal>& array, QgsUnitTypes::RenderUnit unit, const QgsStringMap& props )
+{
+  QVector<qreal> result;
+  QVector<qreal>::const_iterator it = array.constBegin();
+  for ( ; it != array.constEnd(); ++it )
+  {
+    result.append( rescaleUom( *it, unit, props ) );
+  }
+  return result;
+}
+
+void QgsSymbolLayerUtils::applyScaleDependency( QDomDocument& doc, QDomElement& ruleElem, QgsStringMap& props )
+{
+  if ( !props.value( "scaleMinDenom", "" ).isEmpty() )
+  {
+    QDomElement scaleMinDenomElem = doc.createElement( "se:MinScaleDenominator" );
+    scaleMinDenomElem.appendChild( doc.createTextNode( props.value( "scaleMinDenom", "" ) ) );
+    ruleElem.appendChild( scaleMinDenomElem );
+  }
+
+  if ( !props.value( "scaleMaxDenom", "" ).isEmpty() )
+  {
+    QDomElement scaleMaxDenomElem = doc.createElement( "se:MaxScaleDenominator" );
+    scaleMaxDenomElem.appendChild( doc.createTextNode( props.value( "scaleMaxDenom", "" ) ) );
+    ruleElem.appendChild( scaleMaxDenomElem );
+  }
+}
+
+void QgsSymbolLayerUtils::mergeScaleDependencies( int mScaleMinDenom, int mScaleMaxDenom, QgsStringMap& props )
+{
+  if ( mScaleMinDenom != 0 )
+  {
+    bool ok;
+    int parentScaleMinDenom = props.value( "scaleMinDenom", "0" ).toInt( &ok );
+    if ( !ok || parentScaleMinDenom <= 0 )
+      props[ "scaleMinDenom" ] = QString::number( mScaleMinDenom );
+    else
+      props[ "scaleMinDenom" ] = QString::number( qMax( parentScaleMinDenom, mScaleMinDenom ) );
+  }
+
+  if ( mScaleMaxDenom != 0 )
+  {
+    bool ok;
+    int parentScaleMaxDenom = props.value( "scaleMaxDenom", "0" ).toInt( &ok );
+    if ( !ok || parentScaleMaxDenom <= 0 )
+      props[ "scaleMaxDenom" ] = QString::number( mScaleMaxDenom );
+    else
+      props[ "scaleMaxDenom" ] = QString::number( qMin( parentScaleMaxDenom, mScaleMaxDenom ) );
+  }
 }

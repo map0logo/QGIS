@@ -16,6 +16,9 @@
 *                                                                         *
 ***************************************************************************
 """
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'October 2012'
@@ -38,6 +41,8 @@ from processing.core.parameters import ParameterRaster
 from processing.core.parameters import ParameterVector
 from processing.core.parameters import ParameterNumber
 from processing.core.outputs import OutputRaster
+
+from processing.tools import dataobjects
 
 from .TauDEMUtils import TauDEMUtils
 
@@ -65,7 +70,7 @@ class GridNet(GeoAlgorithm):
                                           self.tr('D8 Flow Direction Grid'), False))
         self.addParameter(ParameterVector(self.OUTLETS_SHAPE,
                                           self.tr('Outlets Shapefile'),
-                                          [ParameterVector.VECTOR_TYPE_POINT], True))
+                                          [dataobjects.TYPE_VECTOR_POINT], True))
         self.addParameter(ParameterRaster(self.MASK_GRID,
                                           self.tr('Mask Grid'), True))
         self.addParameter(ParameterNumber(self.THRESHOLD,
@@ -89,7 +94,7 @@ class GridNet(GeoAlgorithm):
                         'correct number before running TauDEM algorithms.'))
 
         commands.append('-n')
-        commands.append(unicode(processNum))
+        commands.append(str(processNum))
         commands.append(os.path.join(TauDEMUtils.taudemPath(), self.cmdName))
         commands.append('-p')
         commands.append(self.getParameterValue(self.D8_FLOW_DIR_GRID))

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Alexander Bruy'
 __date__ = 'April 2014'
@@ -54,7 +55,7 @@ class PointsToPaths(GeoAlgorithm):
         self.name, self.i18n_name = self.trAlgorithm('Points to path')
         self.group, self.i18n_group = self.trAlgorithm('Vector creation tools')
         self.addParameter(ParameterVector(self.VECTOR,
-                                          self.tr('Input point layer'), [ParameterVector.VECTOR_TYPE_POINT]))
+                                          self.tr('Input point layer'), [dataobjects.TYPE_VECTOR_POINT]))
         self.addParameter(ParameterTableField(self.GROUP_FIELD,
                                               self.tr('Group field'), self.VECTOR))
         self.addParameter(ParameterTableField(self.ORDER_FIELD,
@@ -64,7 +65,7 @@ class PointsToPaths(GeoAlgorithm):
         #self.addParameter(ParameterNumber(
         #    self.GAP_PERIOD,
         #    'Gap period (if order field is DateTime)', 0, 60, 0))
-        self.addOutput(OutputVector(self.OUTPUT_LINES, self.tr('Paths')))
+        self.addOutput(OutputVector(self.OUTPUT_LINES, self.tr('Paths'), datatype=[dataobjects.TYPE_VECTOR_LINE]))
         self.addOutput(OutputDirectory(self.OUTPUT_TEXT, self.tr('Directory')))
 
     def processAlgorithm(self, progress):
@@ -72,7 +73,7 @@ class PointsToPaths(GeoAlgorithm):
             self.getParameterValue(self.VECTOR))
         groupField = self.getParameterValue(self.GROUP_FIELD)
         orderField = self.getParameterValue(self.ORDER_FIELD)
-        dateFormat = unicode(self.getParameterValue(self.DATE_FORMAT))
+        dateFormat = str(self.getParameterValue(self.DATE_FORMAT))
         #gap = int(self.getParameterValue(self.GAP_PERIOD))
         dirName = self.getOutputValue(self.OUTPUT_TEXT)
 
@@ -91,7 +92,7 @@ class PointsToPaths(GeoAlgorithm):
             group = f[groupField]
             order = f[orderField]
             if dateFormat != '':
-                order = datetime.strptime(unicode(order), dateFormat)
+                order = datetime.strptime(str(order), dateFormat)
             if group in points:
                 points[group].append((order, point))
             else:
@@ -105,7 +106,7 @@ class PointsToPaths(GeoAlgorithm):
 
         current = 0
         total = 100.0 / len(points)
-        for group, vertices in points.iteritems():
+        for group, vertices in points.items():
             vertices.sort()
             f = QgsFeature()
             f.initAttributes(len(fields))

@@ -16,6 +16,7 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
 
 __author__ = 'Victor Olaya'
 __date__ = 'September 2012'
@@ -74,7 +75,7 @@ class BasicStatisticsNumbers(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector table tools')
 
         self.addParameter(ParameterVector(self.INPUT_LAYER,
-                                          self.tr('Input vector layer'), ParameterVector.VECTOR_TYPE_ANY, False))
+                                          self.tr('Input vector layer')))
         self.addParameter(ParameterTableField(self.FIELD_NAME,
                                               self.tr('Field to calculate statistics on'),
                                               self.INPUT_LAYER, ParameterTableField.DATA_TYPE_NUMBER))
@@ -198,6 +199,6 @@ class BasicStatisticsNumbers(GeoAlgorithm):
         f.write('<meta http-equiv="Content-Type" content="text/html; \
                 charset=utf-8" /></head><body>\n')
         for s in algData:
-            f.write('<p>' + unicode(s) + '</p>\n')
+            f.write('<p>' + str(s) + '</p>\n')
         f.write('</body></html>\n')
         f.close()

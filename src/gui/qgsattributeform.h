@@ -28,6 +28,7 @@ class QgsAttributeFormEditorWidget;
 class QgsMessageBar;
 class QgsMessageBarItem;
 class QgsWidgetWrapper;
+class QgsTabWidget;
 
 /** \ingroup gui
  * \class QgsAttributeForm
@@ -115,16 +116,6 @@ class GUI_EXPORT QgsAttributeForm : public QWidget
      * @see mode()
      */
     void setMode( Mode mode );
-
-    /**
-     * Toggles the form mode between edit feature and add feature.
-     * If set to true, the dialog will be editable even with an invalid feature.
-     * If set to true, the dialog will add a new feature when the form is accepted.
-     *
-     * @param isAddDialog If set to true, turn this dialog into an add feature dialog.
-     * @deprecated use setMode() instead
-     */
-    Q_DECL_DEPRECATED void setIsAddDialog( bool isAddDialog );
 
     /**
      * Sets the edit command message (Undo) that will be used when the dialog is accepted
@@ -221,20 +212,6 @@ class GUI_EXPORT QgsAttributeForm : public QWidget
     bool save();
 
     /**
-     * Alias for save()
-     *
-     * @deprecated
-     */
-    Q_DECL_DEPRECATED void accept() { save(); }
-
-    /**
-     * Alias for resetValues()
-     *
-     * @deprecated
-     */
-    Q_DECL_DEPRECATED void reject() { resetValues(); }
-
-    /**
      * Sets all values to the values of the current feature
      */
     void resetValues();
@@ -287,12 +264,14 @@ class GUI_EXPORT QgsAttributeForm : public QWidget
           : widget( nullptr )
           , labelOnTop( false )
           , labelAlignRight( false )
+          , showLabel( true )
       {}
 
       QWidget* widget;
       QString labelText;
       bool labelOnTop;
       bool labelAlignRight;
+      bool showLabel;
     };
 
     WidgetInfo createWidgetFromDef( const QgsAttributeEditorElement* widgetDef, QWidget* parent, QgsVectorLayer* vl, QgsAttributeEditorContext& context );
@@ -319,14 +298,14 @@ class GUI_EXPORT QgsAttributeForm : public QWidget
     QString createFilterExpression() const;
 
     //! constraints management
-    void updateAllConstaints();
-    void updateConstraints( QgsEditorWidgetWrapper *w );
-    bool currentFormFeature( QgsFeature &feature );
-    bool currentFormValidConstraints( QStringList &invalidFields, QStringList &descriptions );
-    void constraintDependencies( QgsEditorWidgetWrapper *w, QList<QgsEditorWidgetWrapper*> &wDeps );
+    void updateAllConstraints();
+    void updateConstraints( QgsEditorWidgetWrapper* w );
+    bool currentFormFeature( QgsFeature& feature );
+    bool currentFormValidConstraints( QStringList& invalidFields, QStringList& descriptions );
+    QList<QgsEditorWidgetWrapper*> constraintDependencies( QgsEditorWidgetWrapper* w );
     void clearInvalidConstraintsMessage();
-    void displayInvalidConstraintMessage( const QStringList &invalidFields,
-                                          const QStringList &description );
+    void displayInvalidConstraintMessage( const QStringList& invalidFields,
+                                          const QStringList& description );
 
     QgsVectorLayer* mLayer;
     QgsFeature mFeature;
@@ -341,6 +320,37 @@ class GUI_EXPORT QgsAttributeForm : public QWidget
     QWidget* mSearchButtonBox;
     QList<QgsAttributeFormInterface*> mInterfaces;
     QMap< int, QgsAttributeFormEditorWidget* > mFormEditorWidgets;
+    QgsExpressionContext mExpressionContext;
+
+    struct ContainerInformation
+    {
+      ContainerInformation( QgsTabWidget* tabWidget, QWidget* widget, QgsExpression expression )
+          : tabWidget( tabWidget )
+          , widget( widget )
+          , expression( expression )
+          , isVisible( true )
+      {}
+
+      ContainerInformation( QWidget* widget, QgsExpression expression )
+          : tabWidget( nullptr )
+          , widget( widget )
+          , expression( expression )
+          , isVisible( true )
+      {}
+
+      QgsTabWidget* tabWidget;
+      QWidget* widget;
+      QgsExpression expression;
+      bool isVisible;
+
+      void apply( QgsExpressionContext* expressionContext );
+    };
+
+    void registerContainerInformation( ContainerInformation* info );
+
+    // Contains information about tabs and groupboxes, their visibility state visibility conditions
+    QVector<ContainerInformation*> mContainerVisibilityInformation;
+    QMap<QString, QVector<ContainerInformation*> > mContainerInformationDependency;
 
     // Variables below are used for python
     static int sFormCounter;

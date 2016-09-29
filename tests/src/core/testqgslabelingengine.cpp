@@ -43,6 +43,8 @@ class TestQgsLabelingEngine : public QObject
     void testRuleBased();
     void zOrder(); //test that labels are stacked correctly
     void testEncodeDecodePositionOrder();
+    void testSubstitutions();
+    void testCapitalization();
 
   private:
     QgsVectorLayer* vl;
@@ -51,6 +53,7 @@ class TestQgsLabelingEngine : public QObject
 
     void setDefaultLabelParams( QgsVectorLayer* layer );
     bool imageCheck( const QString& testName, QImage &image, int mismatchCount );
+
 };
 
 void TestQgsLabelingEngine::initTestCase()
@@ -411,6 +414,105 @@ void TestQgsLabelingEngine::testEncodeDecodePositionOrder()
   expected << QgsPalLayerSettings::TopRight << QgsPalLayerSettings::BottomSlightlyRight
   << QgsPalLayerSettings::MiddleLeft << QgsPalLayerSettings::TopMiddle;
   QCOMPARE( decoded, expected );
+}
+
+void TestQgsLabelingEngine::testSubstitutions()
+{
+  QgsPalLayerSettings settings;
+  settings.useSubstitutions = false;
+  QgsStringReplacementCollection collection( QList< QgsStringReplacement >() << QgsStringReplacement( "aa", "bb" ) );
+  settings.substitutions = collection;
+  settings.fieldName = QString( "'aa label'" );
+  settings.isExpression = true;
+
+  QgsVectorLayerLabelProvider* provider = new QgsVectorLayerLabelProvider( vl, "test", true, &settings );
+  QgsFeature f( vl->fields(), 1 );
+  f.setGeometry( QgsGeometry::fromPoint( QgsPoint( 1, 2 ) ) );
+
+  // make a fake render context
+  QSize size( 640, 480 );
+  QgsMapSettings mapSettings;
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( vl->extent() );
+  mapSettings.setLayers( QStringList() << vl->id() );
+  mapSettings.setOutputDpi( 96 );
+  QgsRenderContext context = QgsRenderContext::fromMapSettings( mapSettings );
+  QStringList attributes;
+  QgsLabelingEngine engine;
+  engine.setMapSettings( mapSettings );
+  engine.addProvider( provider );
+  provider->prepare( context, attributes );
+
+  provider->registerFeature( f, context );
+  QCOMPARE( provider->mLabels.at( 0 )->labelText(), QString( "aa label" ) );
+
+  //with substitution
+  settings.useSubstitutions = true;
+  QgsVectorLayerLabelProvider* provider2 = new QgsVectorLayerLabelProvider( vl, "test2", true, &settings );
+  engine.addProvider( provider2 );
+  provider2->prepare( context, attributes );
+
+  provider2->registerFeature( f, context );
+  QCOMPARE( provider2->mLabels.at( 0 )->labelText(), QString( "bb label" ) );
+}
+
+void TestQgsLabelingEngine::testCapitalization()
+{
+  QgsFeature f( vl->fields(), 1 );
+  f.setGeometry( QgsGeometry::fromPoint( QgsPoint( 1, 2 ) ) );
+
+  // make a fake render context
+  QSize size( 640, 480 );
+  QgsMapSettings mapSettings;
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( vl->extent() );
+  mapSettings.setLayers( QStringList() << vl->id() );
+  mapSettings.setOutputDpi( 96 );
+  QgsRenderContext context = QgsRenderContext::fromMapSettings( mapSettings );
+  QStringList attributes;
+  QgsLabelingEngine engine;
+  engine.setMapSettings( mapSettings );
+
+  // no change
+  QgsPalLayerSettings settings;
+  QFont font = settings.textFont;
+  font.setCapitalization( QFont::MixedCase );
+  settings.textFont = font;
+  settings.fieldName = QString( "'a teSt LABEL'" );
+  settings.isExpression = true;
+
+  QgsVectorLayerLabelProvider* provider = new QgsVectorLayerLabelProvider( vl, "test", true, &settings );
+  engine.addProvider( provider );
+  provider->prepare( context, attributes );
+  provider->registerFeature( f, context );
+  QCOMPARE( provider->mLabels.at( 0 )->labelText(), QString( "a teSt LABEL" ) );
+
+  //uppercase
+  font.setCapitalization( QFont::AllUppercase );
+  settings.textFont = font;
+  QgsVectorLayerLabelProvider* provider2 = new QgsVectorLayerLabelProvider( vl, "test2", true, &settings );
+  engine.addProvider( provider2 );
+  provider2->prepare( context, attributes );
+  provider2->registerFeature( f, context );
+  QCOMPARE( provider2->mLabels.at( 0 )->labelText(), QString( "A TEST LABEL" ) );
+
+  //lowercase
+  font.setCapitalization( QFont::AllLowercase );
+  settings.textFont = font;
+  QgsVectorLayerLabelProvider* provider3 = new QgsVectorLayerLabelProvider( vl, "test3", true, &settings );
+  engine.addProvider( provider3 );
+  provider3->prepare( context, attributes );
+  provider3->registerFeature( f, context );
+  QCOMPARE( provider3->mLabels.at( 0 )->labelText(), QString( "a test label" ) );
+
+  //first letter uppercase
+  font.setCapitalization( QFont::Capitalize );
+  settings.textFont = font;
+  QgsVectorLayerLabelProvider* provider4 = new QgsVectorLayerLabelProvider( vl, "test4", true, &settings );
+  engine.addProvider( provider4 );
+  provider4->prepare( context, attributes );
+  provider4->registerFeature( f, context );
+  QCOMPARE( provider4->mLabels.at( 0 )->labelText(), QString( "A TeSt LABEL" ) );
 }
 
 bool TestQgsLabelingEngine::imageCheck( const QString& testName, QImage &image, int mismatchCount )

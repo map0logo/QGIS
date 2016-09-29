@@ -2,16 +2,12 @@
         version=0,
         keyword_arguments="Optional")
 
-%Feature QT5_SUPPORT
-
 %Import QtXml/QtXmlmod.sip
 %Import QtNetwork/QtNetworkmod.sip
 %Import QtSql/QtSqlmod.sip
 
-%If (QT5_SUPPORT)
-  %Import QtPrintSupport/QtPrintSupportmod.sip
-  %Import QtWidgets/QtWidgetsmod.sip
-%End
+%Import QtPrintSupport/QtPrintSupportmod.sip
+%Import QtWidgets/QtWidgetsmod.sip
 
 %Include conversions.sip
 %Include qgsexception.sip
@@ -24,8 +20,10 @@
 %Include qgsactionmanager.sip
 %Include qgsaggregatecalculator.sip
 %Include qgsattributetableconfig.sip
+%Include qgsattributeeditorelement.sip
 %Include qgsbrowsermodel.sip
 %Include qgsclipper.sip
+%Include qgscolorramp.sip
 %Include qgscolorscheme.sip
 %Include qgscolorschemeregistry.sip
 %Include qgsconditionalstyle.sip
@@ -46,6 +44,7 @@
 %Include qgsdistancearea.sip
 %Include qgseditformconfig.sip
 %Include qgseditorwidgetconfig.sip
+%Include qgseditorwidgetsetup.sip
 %Include qgserror.sip
 %Include qgsexpression.sip
 %Include qgsexpressioncontext.sip
@@ -66,9 +65,6 @@
 %Include qgsmaptopixelgeometrysimplifier.sip
 %Include qgstransaction.sip
 %Include qgstransactiongroup.sip
-%If(!QT5_SUPPORT)
-  %Include qgshttptransaction.sip
-%End
 %Include qgsdartmeasurement.sip
 %Include qgsexpressionfieldbuffer.sip
 %Include qgsfontutils.sip
@@ -78,7 +74,10 @@
 %Include qgslogger.sip
 %Include qgsmaphittest.sip
 %Include qgsmaplayer.sip
+%Include qgsmaplayerdependency.sip
 %Include qgsmaplayerlegend.sip
+%Include qgsmaplayermodel.sip
+%Include qgsmaplayerproxymodel.sip
 %Include qgsmaplayerregistry.sip
 %Include qgsmaplayerrenderer.sip
 %Include qgsmaplayerstylemanager.sip
@@ -99,6 +98,7 @@
 %Include qgsobjectcustomproperties.sip
 %Include qgsofflineediting.sip
 %Include qgsogcutils.sip
+%Include qgsoptionalexpression.sip
 %Include qgsowsconnection.sip
 %Include qgspaintenginehack.sip
 %Include qgspainting.sip
@@ -110,8 +110,6 @@
 %Include qgsproject.sip
 %Include qgsprojectproperty.sip
 %Include qgsprojectversion.sip
-%Include qgsprovidercountcalcevent.sip
-%Include qgsproviderextentcalcevent.sip
 %Include qgsprovidermetadata.sip
 %Include qgsproviderregistry.sip
 %Include qgspythonrunner.sip
@@ -172,8 +170,6 @@
 %Include composer/qgsaddremovemultiframecommand.sip
 %Include composer/qgsatlascomposition.sip
 %Include composer/qgscomposerarrow.sip
-%Include composer/qgscomposerattributetable.sip
-%Include composer/qgscomposerattributetablemodel.sip
 %Include composer/qgscomposerattributetablemodelv2.sip
 %Include composer/qgscomposerattributetablev2.sip
 %Include composer/qgscomposereffect.sip
@@ -200,7 +196,6 @@
 %Include composer/qgscomposernodesitem.sip
 %Include composer/qgscomposerpolygon.sip
 %Include composer/qgscomposerpolyline.sip
-%Include composer/qgscomposertable.sip
 %Include composer/qgscomposertablecolumn.sip
 %Include composer/qgscomposertablev2.sip
 %Include composer/qgscomposertexttable.sip
@@ -291,7 +286,6 @@
 %Include symbology-ng/qgsstyle.sip
 %Include symbology-ng/qgssvgcache.sip
 %Include symbology-ng/qgssymbol.sip
-%Include symbology-ng/qgsvectorcolorramp.sip
 
 %Include symbology-ng/qgs25drenderer.sip
 %Include symbology-ng/qgscategorizedsymbolrenderer.sip

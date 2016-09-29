@@ -618,6 +618,10 @@ QgisApp::QgisApp( QSplashScreen *splash, bool restorePlugins, bool skipVersionCh
   setupUi( this );
   endProfile();
 
+#if QT_VERSION >= 0x050600
+  setDockOptions( dockOptions() | QMainWindow::GroupedDragging ) ;
+#endif
+
   //////////
 
   startProfile( "Checking database" );
@@ -1273,7 +1277,9 @@ void QgisApp::dragEnterEvent( QDragEnterEvent *event )
 {
   if ( event->mimeData()->hasUrls() || event->mimeData()->hasFormat( "application/x-vnd.qgis.qgis.uri" ) )
   {
-    event->acceptProposedAction();
+    // the mime data are coming from layer tree, so ignore that, do not import those layers again
+    if ( !event->mimeData()->hasFormat( "application/qgis.layertreemodeldata" ) )
+      event->acceptProposedAction();
   }
 }
 
@@ -1730,13 +1736,6 @@ void QgisApp::createActions()
   mActionAddPgLayer = 0;
 #endif
 
-#ifndef WITH_ARCGIS
-  delete mActionAddAfsLayer;
-  mActionAddAfsLayer = 0;
-  delete mActionAddAmsLayer;
-  mActionAddAmsLayer = 0;
-#endif
-
 #ifndef HAVE_ORACLE
   delete mActionAddOracleLayer;
   mActionAddOracleLayer = nullptr;
@@ -2186,7 +2185,6 @@ void QgisApp::createToolBars()
   newLayerAction->setObjectName( "ActionNewLayer" );
   connect( bt, SIGNAL( triggered( QAction * ) ), this, SLOT( toolButtonActionTriggered( QAction * ) ) );
 
-#ifdef WITH_ARCGIS
   // map service tool button
   bt = new QToolButton();
   bt->setPopupMode( QToolButton::MenuButtonPopup );
@@ -2228,9 +2226,6 @@ void QgisApp::createToolBars()
   mLayerToolBar->removeAction( mActionAddWfsLayer );
   featureServiceAction->setObjectName( "ActionFeatureService" );
   connect( bt, SIGNAL( triggered( QAction * ) ), this, SLOT( toolButtonActionTriggered( QAction * ) ) );
-#else
-  QAction* mapServiceAction = mActionAddWmsLayer;
-#endif
 
   // add db layer button
   bt = new QToolButton();
@@ -2521,8 +2516,8 @@ void QgisApp::setTheme( const QString& theThemeName )
   mActionNewVectorLayer->setIcon( QgsApplication::getThemeIcon( "/mActionNewVectorLayer.svg" ) );
   mActionNewMemoryLayer->setIcon( QgsApplication::getThemeIcon( "/mActionCreateMemory.svg" ) );
   mActionAddAllToOverview->setIcon( QgsApplication::getThemeIcon( "/mActionAddAllToOverview.svg" ) );
-  mActionHideAllLayers->setIcon( QgsApplication::getThemeIcon( "/mActionHideAllLayers.png" ) );
-  mActionShowAllLayers->setIcon( QgsApplication::getThemeIcon( "/mActionShowAllLayers.png" ) );
+  mActionHideAllLayers->setIcon( QgsApplication::getThemeIcon( "/mActionHideAllLayers.svg" ) );
+  mActionShowAllLayers->setIcon( QgsApplication::getThemeIcon( "/mActionShowAllLayers.svg" ) );
   mActionHideSelectedLayers->setIcon( QgsApplication::getThemeIcon( "/mActionHideSelectedLayers.png" ) );
   mActionShowSelectedLayers->setIcon( QgsApplication::getThemeIcon( "/mActionShowSelectedLayers.png" ) );
   mActionRemoveAllFromOverview->setIcon( QgsApplication::getThemeIcon( "/mActionRemoveAllFromOverview.svg" ) );
@@ -2616,10 +2611,8 @@ void QgisApp::setTheme( const QString& theThemeName )
   mActionAddWmsLayer->setIcon( QgsApplication::getThemeIcon( "/mActionAddWmsLayer.svg" ) );
   mActionAddWcsLayer->setIcon( QgsApplication::getThemeIcon( "/mActionAddWcsLayer.svg" ) );
   mActionAddWfsLayer->setIcon( QgsApplication::getThemeIcon( "/mActionAddWfsLayer.svg" ) );
-#ifdef WITH_ARCGIS
   mActionAddAfsLayer->setIcon( QgsApplication::getThemeIcon( "/mActionAddAfsLayer.svg" ) );
   mActionAddAmsLayer->setIcon( QgsApplication::getThemeIcon( "/mActionAddAmsLayer.svg" ) );
-#endif
   mActionAddToOverview->setIcon( QgsApplication::getThemeIcon( "/mActionInOverview.svg" ) );
   mActionAnnotation->setIcon( QgsApplication::getThemeIcon( "/mActionAnnotation.svg" ) );
   mActionFormAnnotation->setIcon( QgsApplication::getThemeIcon( "/mActionFormAnnotation.svg" ) );
@@ -2637,7 +2630,7 @@ void QgisApp::setTheme( const QString& theThemeName )
   mActionDecorationCopyright->setIcon( QgsApplication::getThemeIcon( "/copyright_label.png" ) );
   mActionDecorationNorthArrow->setIcon( QgsApplication::getThemeIcon( "/north_arrow.png" ) );
   mActionDecorationScaleBar->setIcon( QgsApplication::getThemeIcon( "/scale_bar.png" ) );
-  mActionDecorationGrid->setIcon( QgsApplication::getThemeIcon( "/transformed.png" ) );
+  mActionDecorationGrid->setIcon( QgsApplication::getThemeIcon( "/transformed.svg" ) );
 
   //change themes of all composers
   QSet<QgsComposer*>::const_iterator composerIt = mPrintComposers.constBegin();
@@ -2891,7 +2884,7 @@ void QgisApp::createOverview()
 
   mMapCanvas->setCachingEnabled( mySettings.value( "/qgis/enable_render_caching", true ).toBool() );
 
-  mMapCanvas->setParallelRenderingEnabled( mySettings.value( "/qgis/parallel_rendering", false ).toBool() );
+  mMapCanvas->setParallelRenderingEnabled( mySettings.value( "/qgis/parallel_rendering", true ).toBool() );
 
   mMapCanvas->setMapUpdateInterval( mySettings.value( "/qgis/map_update_interval", 250 ).toInt() );
 }
@@ -5081,13 +5074,15 @@ void QgisApp::dxfExport()
     dxfExport.setSymbologyScaleDenominator( d.symbologyScale() );
     dxfExport.setSymbologyExport( d.symbologyMode() );
     dxfExport.setLayerTitleAsName( d.layerTitleAsName() );
+    dxfExport.setDestinationCrs( d.crs() );
     if ( mapCanvas() )
     {
       dxfExport.setMapUnits( mapCanvas()->mapUnits() );
       //extent
       if ( d.exportMapExtent() )
       {
-        dxfExport.setExtent( mapCanvas()->extent() );
+        QgsCoordinateTransform t( mapCanvas()->mapSettings().destinationCrs(), d.crs() );
+        dxfExport.setExtent( t.transformBoundingBox( mapCanvas()->extent() ) );
       }
     }
 
@@ -5143,7 +5138,7 @@ void QgisApp::runScript( const QString &filePath )
 
   mPythonUtils->runString(
     QString( "import sys\n"
-             "execfile(\"%1\".replace(\"\\\\\", \"/\").encode(sys.getfilesystemencoding()))\n" ).arg( filePath )
+             "exec(open(\"%1\".replace(\"\\\\\", \"/\").encode(sys.getfilesystemencoding())).read())\n" ).arg( filePath )
     , tr( "Failed to run Python script:" ), false );
 }
 
@@ -6147,11 +6142,11 @@ QVariant QgisAppFieldValueConverter::convert( int idx, const QVariant& value )
   {
     return value;
   }
-  QgsEditorWidgetFactory *factory = QgsEditorWidgetRegistry::instance()->factory( mLayer->editFormConfig()->widgetType( idx ) );
+  const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( mLayer, mLayer->fields().field( idx ).name() );
+  QgsEditorWidgetFactory *factory = QgsEditorWidgetRegistry::instance()->factory( setup.type() );
   if ( factory )
   {
-    QgsEditorWidgetConfig cfg( mLayer->editFormConfig()->widgetConfig( idx ) );
-    return QVariant( factory->representValue( mLayer, idx, cfg, QVariant(), value ) );
+    return QVariant( factory->representValue( mLayer, idx, setup.config(), QVariant(), value ) );
   }
   return value;
 }
@@ -6236,7 +6231,7 @@ void QgisApp::saveAsVectorFileGeneral( QgsVectorLayer* vlayer, bool symbologyOpt
               dialog->onlySelected(),
               &errorMessage,
               datasourceOptions, dialog->layerOptions(),
-              dialog->attributeSelection() && dialog->selectedAttributes().isEmpty(),
+              dialog->selectedAttributes().isEmpty(),
               &newFilename,
               static_cast< QgsVectorFileWriter::SymbologyExport >( dialog->symbologyExport() ),
               dialog->scaleDenominator(),
@@ -6604,17 +6599,12 @@ bool QgisApp::loadComposersFromProject( const QDomDocument& doc )
     mPrintComposersMenu->addAction( composer->windowAction() );
 #ifndef Q_OS_MACX
     composer->setWindowState( Qt::WindowMinimized );
-    composer->show();
 #endif
     composer->zoomFull();
     QgsComposerView* composerView = composer->view();
     if ( composerView )
     {
       composerView->updateRulers();
-    }
-    if ( composerNodes.at( i ).toElement().attribute( "visible", "1" ).toInt() < 1 )
-    {
-      composer->close();
     }
     emit composerAdded( composer->view() );
     connect( composer, SIGNAL( composerAdded( QgsComposerView* ) ), this, SIGNAL( composerAdded( QgsComposerView* ) ) );
@@ -7343,6 +7333,7 @@ void QgisApp::editPaste( QgsMapLayer *destinationLayer )
     remap.insert( idx, dst );
   }
 
+  QgsExpressionContext context = pasteVectorLayer->createExpressionContext();
   int dstAttrCount = pasteVectorLayer->fields().count();
 
   QgsFeatureList::iterator featureIt = features.begin();
@@ -7354,8 +7345,18 @@ void QgisApp::editPaste( QgsMapLayer *destinationLayer )
     // pre-initialized with default values
     for ( int dst = 0; dst < dstAttr.count(); ++dst )
     {
-      QVariant defVal( pasteVectorLayer->dataProvider()->defaultValue( dst ) );
-      if ( !defVal.isNull() )
+      QVariant defVal;
+      if ( !pasteVectorLayer->defaultValueExpression( dst ).isEmpty() )
+      {
+        // client side default expression set - use this in preference to provider default
+        defVal = pasteVectorLayer->defaultValue( dst, *featureIt, &context );
+      }
+      else
+      {
+        defVal = pasteVectorLayer->dataProvider()->defaultValue( dst );
+      }
+
+      if ( defVal.isValid() && !defVal.isNull() )
       {
         dstAttr[ dst ] = defVal;
       }
@@ -8859,7 +8860,7 @@ void QgisApp::showOptionsDialog( QWidget *parent, const QString& currentPage )
 
     mMapCanvas->setCachingEnabled( mySettings.value( "/qgis/enable_render_caching", true ).toBool() );
 
-    mMapCanvas->setParallelRenderingEnabled( mySettings.value( "/qgis/parallel_rendering", false ).toBool() );
+    mMapCanvas->setParallelRenderingEnabled( mySettings.value( "/qgis/parallel_rendering", true ).toBool() );
 
     mMapCanvas->setMapUpdateInterval( mySettings.value( "/qgis/map_update_interval", 250 ).toInt() );
 
@@ -11214,13 +11215,13 @@ void QgisApp::projectChanged( const QDomDocument &doc )
   if ( !prevProjectDir.isNull() )
   {
     QString prev = prevProjectDir;
-    expr = QString( "sys.path.remove('%1'); " ).arg( prev.replace( '\'', "\\'" ) );
+    expr = QString( "sys.path.remove(u'%1'); " ).arg( prev.replace( '\'', "\\'" ) );
   }
 
   prevProjectDir = fi.canonicalPath();
 
   QString prev = prevProjectDir;
-  expr += QString( "sys.path.append('%1')" ).arg( prev.replace( '\'', "\\'" ) );
+  expr += QString( "sys.path.append(u'%1')" ).arg( prev.replace( '\'', "\\'" ) );
 
   QgsPythonRunner::run( expr );
 }

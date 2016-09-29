@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import range
 
 __author__ = 'Michael Minn'
 __date__ = 'May 2010'
@@ -35,6 +37,7 @@ from processing.core.GeoAlgorithm import GeoAlgorithm
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
 from processing.core.parameters import ParameterMultipleInput
 from processing.core.outputs import OutputVector
+from processing.tools import dataobjects
 
 pluginPath = os.path.split(os.path.split(os.path.dirname(__file__))[0])[0]
 
@@ -51,7 +54,8 @@ class Merge(GeoAlgorithm):
         self.group, self.i18n_group = self.trAlgorithm('Vector general tools')
 
         self.addParameter(ParameterMultipleInput(self.LAYERS,
-                                                 self.tr('Layers to merge'), datatype=ParameterMultipleInput.TYPE_VECTOR_ANY))
+                                                 self.tr('Layers to merge'),
+                                                 datatype=dataobjects.TYPE_VECTOR_ANY))
 
         self.addOutput(OutputVector(self.OUTPUT, self.tr('Merged')))
 
@@ -62,8 +66,8 @@ class Merge(GeoAlgorithm):
         layers = []
         fields = QgsFields()
         totalFeatureCount = 0
-        for x in xrange(len(paths)):
-            layer = QgsVectorLayer(paths[x], unicode(x), 'ogr')
+        for x in range(len(paths)):
+            layer = QgsVectorLayer(paths[x], str(x), 'ogr')
 
             if (len(layers) > 0):
                 if (layer.wkbType() != layers[0].wkbType()):

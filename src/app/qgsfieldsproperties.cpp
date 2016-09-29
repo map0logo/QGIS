@@ -28,6 +28,7 @@
 #include "qgsrelationmanager.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
+#include "qgsfieldexpressionwidget.h"
 
 #include <QTreeWidgetItem>
 #include <QWidget>
@@ -72,7 +73,7 @@ QgsFieldsProperties::QgsFieldsProperties( QgsVectorLayer *layer, QWidget* parent
   // tab and group display
   mAddItemButton->setEnabled( false );
 
-  mDesignerTree = new DesignerTree( mAttributesTreeFrame );
+  mDesignerTree = new DesignerTree( mLayer, mAttributesTreeFrame );
   mDesignerListLayout->addWidget( mDesignerTree );
   mDesignerTree->setHeaderLabels( QStringList() << tr( "Label" ) );
 
@@ -137,8 +138,8 @@ void QgsFieldsProperties::init()
 {
   loadRows();
 
-  mEditorLayoutComboBox->setCurrentIndex( mLayer->editFormConfig()->layout() );
-  mFormSuppressCmbBx->setCurrentIndex( mLayer->editFormConfig()->suppress() );
+  mEditorLayoutComboBox->setCurrentIndex( mLayer->editFormConfig().layout() );
+  mFormSuppressCmbBx->setCurrentIndex( mLayer->editFormConfig().suppress() );
 
   loadAttributeEditorTree();
 }
@@ -154,29 +155,45 @@ void QgsFieldsProperties::onAttributeSelectionChanged()
   updateButtons();
 }
 
-QTreeWidgetItem *QgsFieldsProperties::loadAttributeEditorTreeItem( QgsAttributeEditorElement* const widgetDef, QTreeWidgetItem* parent )
+QTreeWidgetItem* QgsFieldsProperties::loadAttributeEditorTreeItem( QgsAttributeEditorElement* const widgetDef, QTreeWidgetItem* parent )
 {
   QTreeWidgetItem* newWidget = nullptr;
   switch ( widgetDef->type() )
   {
     case QgsAttributeEditorElement::AeTypeField:
-      newWidget = mDesignerTree->addItem( parent, DesignerTreeItemData( DesignerTreeItemData::Field, widgetDef->name() ) );
+    {
+      DesignerTreeItemData itemData = DesignerTreeItemData( DesignerTreeItemData::Field, widgetDef->name() );
+      itemData.setShowLabel( widgetDef->showLabel() );
+      newWidget = mDesignerTree->addItem( parent, itemData );
       break;
+    }
 
     case QgsAttributeEditorElement::AeTypeRelation:
-      newWidget = mDesignerTree->addItem( parent, DesignerTreeItemData( DesignerTreeItemData::Relation, widgetDef->name() ) );
+    {
+      const QgsAttributeEditorRelation* relationEditor = static_cast<const QgsAttributeEditorRelation*>( widgetDef );
+      DesignerTreeItemData itemData = DesignerTreeItemData( DesignerTreeItemData::Relation, widgetDef->name() );
+      itemData.setShowLabel( widgetDef->showLabel() );
+      RelationEditorConfiguration relEdConfig;
+      relEdConfig.showLinkButton = relationEditor->showLinkButton();
+      relEdConfig.showUnlinkButton = relationEditor->showUnlinkButton();
+      itemData.setRelationEditorConfiguration( relEdConfig );
+
+      newWidget = mDesignerTree->addItem( parent, itemData );
       break;
+    }
 
     case QgsAttributeEditorElement::AeTypeContainer:
     {
       DesignerTreeItemData itemData( DesignerTreeItemData::Container, widgetDef->name() );
+      itemData.setShowLabel( widgetDef->showLabel() );
 
-      const QgsAttributeEditorContainer* container = dynamic_cast<const QgsAttributeEditorContainer*>( widgetDef );
+      const QgsAttributeEditorContainer* container = static_cast<const QgsAttributeEditorContainer*>( widgetDef );
       if ( !container )
         break;
 
       itemData.setColumnCount( container->columnCount() );
       itemData.setShowAsGroupBox( container->isGroupBox() );
+      itemData.setVisibilityExpression( container->visibilityExpression() );
       newWidget = mDesignerTree->addItem( parent, itemData );
 
       Q_FOREACH ( QgsAttributeEditorElement* wdg, container->children() )
@@ -238,7 +255,7 @@ void QgsFieldsProperties::loadAttributeEditorTree()
   mDesignerTree->setAcceptDrops( true );
   mDesignerTree->setDragDropMode( QAbstractItemView::DragDrop );
 
-  Q_FOREACH ( QgsAttributeEditorElement* wdg, mLayer->editFormConfig()->tabs() )
+  Q_FOREACH ( QgsAttributeEditorElement* wdg, mLayer->editFormConfig().tabs() )
   {
     loadAttributeEditorTreeItem( wdg, mDesignerTree->invisibleRootItem() );
   }
@@ -332,7 +349,7 @@ void QgsFieldsProperties::setRow( int row, int idx, const QgsField& field )
   setConfigForRow( row, cfg );
 
   //set the alias for the attribute
-  mFieldsList->setItem( row, attrAliasCol, new QTableWidgetItem( mLayer->attributeAlias( idx ) ) );
+  mFieldsList->setItem( row, attrAliasCol, new QTableWidgetItem( field.alias() ) );
 
   //published WMS/WFS attributes
   QTableWidgetItem* wmsAttrItem = new QTableWidgetItem();
@@ -382,9 +399,9 @@ void QgsFieldsProperties::loadRelations()
       if ( nmrel.fieldPairs().at( 0 ).referencingField() != relation.fieldPairs().at( 0 ).referencingField() )
         nmCombo->addItem( QString( "%1 (%2)" ).arg( nmrel.referencedLayer()->name(), nmrel.fieldPairs().at( 0 ).referencedField() ), nmrel.id() );
 
-      QgsEditorWidgetConfig cfg = mLayer->editFormConfig()->widgetConfig( relation.id() );
+      const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( mLayer, relation.id() );
 
-      QVariant nmrelcfg = cfg.value( "nm-rel" );
+      const QVariant nmrelcfg = setup.config().value( "nm-rel" );
 
       int idx =  nmCombo->findData( nmrelcfg.toString() );
 
@@ -542,8 +559,9 @@ void QgsFieldsProperties::attributeTypeDialog()
   attributeTypeDialog.setFieldEditable( cfg.mEditable );
   attributeTypeDialog.setLabelOnTop( cfg.mLabelOnTop );
   attributeTypeDialog.setNotNull( cfg.mNotNull );
-  attributeTypeDialog.setExpression( cfg.mConstraint );
-  attributeTypeDialog.setExpressionDescription( cfg.mConstraintDescription );
+  attributeTypeDialog.setConstraintExpression( cfg.mConstraint );
+  attributeTypeDialog.setConstraintExpressionDescription( cfg.mConstraintDescription );
+  attributeTypeDialog.setDefaultValueExpression( mLayer->defaultValueExpression( index ) );
 
   attributeTypeDialog.setWidgetConfig( cfg.mEditorWidgetConfig );
   attributeTypeDialog.setWidgetType( cfg.mEditorWidgetType );
@@ -554,8 +572,9 @@ void QgsFieldsProperties::attributeTypeDialog()
   cfg.mEditable = attributeTypeDialog.fieldEditable();
   cfg.mLabelOnTop = attributeTypeDialog.labelOnTop();
   cfg.mNotNull = attributeTypeDialog.notNull();
-  cfg.mConstraintDescription = attributeTypeDialog.expressionDescription();
-  cfg.mConstraint = attributeTypeDialog.expression();
+  cfg.mConstraintDescription = attributeTypeDialog.constraintExpressionDescription();
+  cfg.mConstraint = attributeTypeDialog.constraintExpression();
+  mLayer->setDefaultValueExpression( index, attributeTypeDialog.defaultValueExpression() );
 
   cfg.mEditorWidgetType = attributeTypeDialog.editorWidgetType();
   cfg.mEditorWidgetConfig = attributeTypeDialog.editorWidgetConfig();
@@ -827,7 +846,7 @@ void QgsFieldsProperties::updateFieldRenamingStatus()
   }
 }
 
-QgsAttributeEditorElement* QgsFieldsProperties::createAttributeEditorWidget( QTreeWidgetItem* item, QObject *parent , bool forceGroup )
+QgsAttributeEditorElement* QgsFieldsProperties::createAttributeEditorWidget( QTreeWidgetItem* item, QgsAttributeEditorElement* parent , bool forceGroup )
 {
   QgsAttributeEditorElement *widgetDef = nullptr;
 
@@ -844,7 +863,10 @@ QgsAttributeEditorElement* QgsFieldsProperties::createAttributeEditorWidget( QTr
     case DesignerTreeItemData::Relation:
     {
       QgsRelation relation = QgsProject::instance()->relationManager()->relation( itemData.name() );
-      widgetDef = new QgsAttributeEditorRelation( itemData.name(), relation, parent );
+      QgsAttributeEditorRelation* relDef = new QgsAttributeEditorRelation( itemData.name(), relation, parent );
+      relDef->setShowLinkButton( itemData.relationEditorConfiguration().showLinkButton );
+      relDef->setShowUnlinkButton( itemData.relationEditorConfiguration().showUnlinkButton );
+      widgetDef = relDef;
       break;
     }
 
@@ -853,6 +875,7 @@ QgsAttributeEditorElement* QgsFieldsProperties::createAttributeEditorWidget( QTr
       QgsAttributeEditorContainer* container = new QgsAttributeEditorContainer( item->text( 0 ), parent );
       container->setColumnCount( itemData.columnCount() );
       container->setIsGroupBox( forceGroup ? true : itemData.showAsGroupBox() );
+      container->setVisibilityExpression( itemData.visibilityExpression() );
 
       for ( int t = 0; t < item->childCount(); t++ )
       {
@@ -863,6 +886,8 @@ QgsAttributeEditorElement* QgsFieldsProperties::createAttributeEditorWidget( QTr
       break;
     }
   }
+
+  widgetDef->setShowLabel( itemData.showLabel() );
 
   return widgetDef;
 }
@@ -921,19 +946,22 @@ void QgsFieldsProperties::apply()
 {
   QSet<QString> excludeAttributesWMS, excludeAttributesWFS;
 
+  QgsEditFormConfig editFormConfig = mLayer->editFormConfig();
+
   for ( int i = 0; i < mFieldsList->rowCount(); i++ )
   {
     int idx = mFieldsList->item( i, attrIdCol )->text().toInt();
+    QString name = mLayer->fields().at( idx ).name();
     FieldConfig cfg = configForRow( i );
 
-    mLayer->editFormConfig()->setReadOnly( i, !cfg.mEditable );
-    mLayer->editFormConfig()->setLabelOnTop( i, cfg.mLabelOnTop );
-    mLayer->editFormConfig()->setNotNull( i, cfg.mNotNull );
-    mLayer->editFormConfig()->setExpressionDescription( i, cfg.mConstraintDescription );
-    mLayer->editFormConfig()->setExpression( i, cfg.mConstraint );
+    editFormConfig.setReadOnly( i, !cfg.mEditable );
+    editFormConfig.setLabelOnTop( i, cfg.mLabelOnTop );
+    editFormConfig.setNotNull( i, cfg.mNotNull );
+    editFormConfig.setContraintDescription( i, cfg.mConstraintDescription );
+    editFormConfig.setConstraintExpression( i, cfg.mConstraint );
 
-    mLayer->editFormConfig()->setWidgetType( idx, cfg.mEditorWidgetType );
-    mLayer->editFormConfig()->setWidgetConfig( idx, cfg.mEditorWidgetConfig );
+    editFormConfig.setWidgetType( name, cfg.mEditorWidgetType );
+    editFormConfig.setWidgetConfig( name, cfg.mEditorWidgetConfig );
 
     if ( mFieldsList->item( i, attrWMSCol )->checkState() == Qt::Unchecked )
     {
@@ -946,25 +974,24 @@ void QgsFieldsProperties::apply()
   }
 
   // tabs and groups
-  mLayer->clearAttributeEditorWidgets();
+  editFormConfig.clearTabs();
   for ( int t = 0; t < mDesignerTree->invisibleRootItem()->childCount(); t++ )
   {
     QTreeWidgetItem* tabItem = mDesignerTree->invisibleRootItem()->child( t );
 
-    mLayer->editFormConfig()->addTab( createAttributeEditorWidget( tabItem, mLayer, false ) );
+    editFormConfig.addTab( createAttributeEditorWidget( tabItem, nullptr, false ) );
   }
 
-  mLayer->editFormConfig()->setLayout(( QgsEditFormConfig::EditorLayout ) mEditorLayoutComboBox->currentIndex() );
-  if ( mEditorLayoutComboBox->currentIndex() == QgsEditFormConfig::UiFileLayout )
-    mLayer->editFormConfig()->setUiForm( mEditFormLineEdit->text() );
+  editFormConfig.setUiForm( mEditFormLineEdit->text() );
+  editFormConfig.setLayout(( QgsEditFormConfig::EditorLayout ) mEditorLayoutComboBox->currentIndex() );
 
   // Init function configuration
-  mLayer->editFormConfig()->setInitFunction( mInitFunctionLineEdit->text() );
-  mLayer->editFormConfig()->setInitCode( mInitCodeEditorPython->text() );
-  mLayer->editFormConfig()->setInitFilePath( mInitFilePathLineEdit->text() );
-  mLayer->editFormConfig()->setInitCodeSource(( QgsEditFormConfig::PythonInitCodeSource )mInitCodeSourceComboBox->currentIndex() );
+  editFormConfig.setInitFunction( mInitFunctionLineEdit->text() );
+  editFormConfig.setInitCode( mInitCodeEditorPython->text() );
+  editFormConfig.setInitFilePath( mInitFilePathLineEdit->text() );
+  editFormConfig.setInitCodeSource(( QgsEditFormConfig::PythonInitCodeSource )mInitCodeSourceComboBox->currentIndex() );
 
-  mLayer->editFormConfig()->setSuppress(( QgsEditFormConfig::FeatureFormSuppress )mFormSuppressCmbBx->currentIndex() );
+  editFormConfig.setSuppress(( QgsEditFormConfig::FeatureFormSuppress )mFormSuppressCmbBx->currentIndex() );
 
   mLayer->setExcludeAttributesWms( excludeAttributesWMS );
   mLayer->setExcludeAttributesWfs( excludeAttributesWFS );
@@ -975,7 +1002,7 @@ void QgsFieldsProperties::apply()
     QgsEditorWidgetConfig cfg;
 
     QComboBox* cb = qobject_cast<QComboBox*>( mRelationsList->cellWidget( i, RelNmCol ) );
-    QVariant otherRelation = cb->itemData( cb->currentIndex() );
+    QVariant otherRelation = cb->currentData();
 
     if ( otherRelation.isValid() )
     {
@@ -986,8 +1013,10 @@ void QgsFieldsProperties::apply()
 
     QString relationName = itemData.name();
 
-    mLayer->editFormConfig()->setWidgetConfig( relationName, cfg );
+    editFormConfig.setWidgetConfig( relationName, cfg );
   }
+
+  mLayer->setEditFormConfig( editFormConfig );
 }
 /*
  * FieldConfig implementation
@@ -1006,15 +1035,16 @@ QgsFieldsProperties::FieldConfig::FieldConfig()
 QgsFieldsProperties::FieldConfig::FieldConfig( QgsVectorLayer* layer, int idx )
     : mButton( nullptr )
 {
-  mEditable = !layer->editFormConfig()->readOnly( idx );
+  mEditable = !layer->editFormConfig().readOnly( idx );
   mEditableEnabled = layer->fields().fieldOrigin( idx ) != QgsFields::OriginJoin
                      && layer->fields().fieldOrigin( idx ) != QgsFields::OriginExpression;
-  mLabelOnTop = layer->editFormConfig()->labelOnTop( idx );
-  mNotNull = layer->editFormConfig()->notNull( idx );
-  mConstraint = layer->editFormConfig()->expression( idx );
-  mConstraintDescription = layer->editFormConfig()->expressionDescription( idx );
-  mEditorWidgetType = layer->editFormConfig()->widgetType( idx );
-  mEditorWidgetConfig = layer->editFormConfig()->widgetConfig( idx );
+  mLabelOnTop = layer->editFormConfig().labelOnTop( idx );
+  mNotNull = layer->editFormConfig().notNull( idx );
+  mConstraint = layer->editFormConfig().constraintExpression( idx );
+  mConstraintDescription = layer->editFormConfig().constraintDescription( idx );
+  const QgsEditorWidgetSetup setup = QgsEditorWidgetRegistry::instance()->findBest( layer, layer->fields().field( idx ).name() );
+  mEditorWidgetType = setup.type();
+  mEditorWidgetConfig = setup.config();
 }
 
 /*
@@ -1073,8 +1103,9 @@ QTreeWidgetItem* DesignerTree::addContainer( QTreeWidgetItem* parent, const QStr
   return newItem;
 }
 
-DesignerTree::DesignerTree( QWidget* parent )
+DesignerTree::DesignerTree( QgsVectorLayer* layer, QWidget* parent )
     : QTreeWidget( parent )
+    , mLayer( layer )
 {
   connect( this, SIGNAL( itemDoubleClicked( QTreeWidgetItem*, int ) ), this, SLOT( onItemDoubleClicked( QTreeWidgetItem*, int ) ) );
 }
@@ -1231,21 +1262,43 @@ void DesignerTree::onItemDoubleClicked( QTreeWidgetItem* item, int column )
   Q_UNUSED( column )
   QgsFieldsProperties::DesignerTreeItemData itemData = item->data( 0, QgsFieldsProperties::DesignerTreeRole ).value<QgsFieldsProperties::DesignerTreeItemData>();
 
+  QGroupBox* baseData = new QGroupBox( tr( "Base configuration" ) );
+
+  QFormLayout* baseLayout = new QFormLayout();
+  baseData->setLayout( baseLayout );
+  QCheckBox* showLabelCheckbox = new QCheckBox( "Show label" );
+  showLabelCheckbox->setChecked( itemData.showLabel() );
+  baseLayout->addWidget( showLabelCheckbox );
+  QWidget* baseWidget = new QWidget();
+  baseWidget->setLayout( baseLayout );
+
   if ( itemData.type() == QgsFieldsProperties::DesignerTreeItemData::Container )
   {
     QDialog dlg;
     dlg.setWindowTitle( tr( "Configure container" ) );
     QFormLayout* layout = new QFormLayout() ;
     dlg.setLayout( layout );
+    layout->addWidget( baseWidget );
 
     QCheckBox* showAsGroupBox = nullptr;
     QLineEdit* title = new QLineEdit( itemData.name() );
     QSpinBox* columnCount = new QSpinBox();
+    QGroupBox* visibilityExpressionGroupBox = new QGroupBox( tr( "Control visibility by expression " ) );
+    visibilityExpressionGroupBox->setCheckable( true );
+    visibilityExpressionGroupBox->setChecked( itemData.visibilityExpression().enabled() );
+    visibilityExpressionGroupBox->setLayout( new QGridLayout );
+    QgsFieldExpressionWidget* visibilityExpressionWidget = new QgsFieldExpressionWidget;
+    visibilityExpressionWidget->setLayer( mLayer );
+    visibilityExpressionWidget->setExpressionDialogTitle( tr( "Visibility expression" ) );
+    visibilityExpressionWidget->setExpression( itemData.visibilityExpression()->expression() );
+    visibilityExpressionGroupBox->layout()->addWidget( visibilityExpressionWidget );
+
     columnCount->setRange( 1, 5 );
     columnCount->setValue( itemData.columnCount() );
 
     layout->addRow( tr( "Title" ), title );
     layout->addRow( tr( "Column count" ), columnCount );
+    layout->addWidget( visibilityExpressionGroupBox );
 
     if ( !item->parent() )
     {
@@ -1267,8 +1320,70 @@ void DesignerTree::onItemDoubleClicked( QTreeWidgetItem* item, int column )
       itemData.setColumnCount( columnCount->value() );
       itemData.setShowAsGroupBox( showAsGroupBox ? showAsGroupBox->isChecked() : true );
       itemData.setName( title->text() );
+      itemData.setShowLabel( showLabelCheckbox->isChecked() );
+
+      QgsOptionalExpression visibilityExpression;
+      visibilityExpression.setData( QgsExpression( visibilityExpressionWidget->expression() ) );
+      visibilityExpression.setEnabled( visibilityExpressionGroupBox->isChecked() );
+      itemData.setVisibilityExpression( visibilityExpression );
+
       item->setData( 0, QgsFieldsProperties::DesignerTreeRole, itemData.asQVariant() );
       item->setText( 0, title->text() );
+    }
+  }
+  else if ( itemData.type() == QgsFieldsProperties::DesignerTreeItemData::Relation )
+  {
+    QDialog dlg;
+    dlg.setWindowTitle( tr( "Configure relation editor" ) );
+    QFormLayout* layout = new QFormLayout() ;
+    dlg.setLayout( layout );
+    layout->addWidget( baseWidget );
+
+    QCheckBox* showLinkButton = new QCheckBox( tr( "Show link button" ) );
+    showLinkButton->setChecked( itemData.relationEditorConfiguration().showLinkButton );
+    QCheckBox* showUnlinkButton = new QCheckBox( tr( "Show unlink button" ) );
+    showUnlinkButton->setChecked( itemData.relationEditorConfiguration().showUnlinkButton );
+    layout->addRow( showLinkButton );
+    layout->addRow( showUnlinkButton );
+
+    QDialogButtonBox* buttonBox = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel );
+
+    connect( buttonBox, SIGNAL( accepted() ), &dlg, SLOT( accept() ) );
+    connect( buttonBox, SIGNAL( rejected() ), &dlg, SLOT( reject() ) );
+
+    dlg.layout()->addWidget( buttonBox );
+
+    if ( dlg.exec() )
+    {
+      QgsFieldsProperties::RelationEditorConfiguration relEdCfg;
+      relEdCfg.showLinkButton = showLinkButton->isChecked();
+      relEdCfg.showUnlinkButton = showUnlinkButton->isChecked();
+      itemData.setShowLabel( showLabelCheckbox->isChecked() );
+      itemData.setRelationEditorConfiguration( relEdCfg );
+
+      item->setData( 0, QgsFieldsProperties::DesignerTreeRole, itemData.asQVariant() );
+    }
+  }
+  else
+  {
+    QDialog dlg;
+    dlg.setWindowTitle( tr( "Configure field" ) );
+    dlg.setLayout( new QGridLayout() );
+    dlg.layout()->addWidget( baseWidget );
+
+    QDialogButtonBox* buttonBox = new QDialogButtonBox( QDialogButtonBox::Ok
+        | QDialogButtonBox::Cancel );
+
+    connect( buttonBox, SIGNAL( accepted() ), &dlg, SLOT( accept() ) );
+    connect( buttonBox, SIGNAL( rejected() ), &dlg, SLOT( reject() ) );
+
+    dlg.layout()->addWidget( buttonBox );
+
+    if ( dlg.exec() )
+    {
+      itemData.setShowLabel( showLabelCheckbox->isChecked() );
+
+      item->setData( 0, QgsFieldsProperties::DesignerTreeRole, itemData.asQVariant() );
     }
   }
 }
@@ -1304,4 +1419,34 @@ bool QgsFieldsProperties::DesignerTreeItemData::showAsGroupBox() const
 void QgsFieldsProperties::DesignerTreeItemData::setShowAsGroupBox( bool showAsGroupBox )
 {
   mShowAsGroupBox = showAsGroupBox;
+}
+
+bool QgsFieldsProperties::DesignerTreeItemData::showLabel() const
+{
+  return mShowLabel;
+}
+
+void QgsFieldsProperties::DesignerTreeItemData::setShowLabel( bool showLabel )
+{
+  mShowLabel = showLabel;
+}
+
+QgsOptionalExpression QgsFieldsProperties::DesignerTreeItemData::visibilityExpression() const
+{
+  return mVisibilityExpression;
+}
+
+void QgsFieldsProperties::DesignerTreeItemData::setVisibilityExpression( const QgsOptionalExpression& visibilityExpression )
+{
+  mVisibilityExpression = visibilityExpression;
+}
+
+QgsFieldsProperties::RelationEditorConfiguration QgsFieldsProperties::DesignerTreeItemData::relationEditorConfiguration() const
+{
+  return mRelationEditorConfiguration;
+}
+
+void QgsFieldsProperties::DesignerTreeItemData::setRelationEditorConfiguration( const QgsFieldsProperties::RelationEditorConfiguration& relationEditorConfiguration )
+{
+  mRelationEditorConfiguration = relationEditorConfiguration;
 }

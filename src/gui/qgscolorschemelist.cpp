@@ -23,6 +23,8 @@
 #include <QMimeData>
 #include <QClipboard>
 #include <QKeyEvent>
+#include <QFileDialog>
+#include <QMessageBox>
 
 #ifdef ENABLE_MODELTEST
 #include "modeltest.h"
@@ -91,9 +93,9 @@ void QgsColorSchemeList::removeSelection()
   }
 }
 
-void QgsColorSchemeList::addColor( const QColor &color, const QString &label )
+void QgsColorSchemeList::addColor( const QColor &color, const QString &label, bool allowDuplicate )
 {
-  mModel->addColor( color, label );
+  mModel->addColor( color, label, allowDuplicate );
 }
 
 void QgsColorSchemeList::pasteColors()
@@ -133,6 +135,64 @@ void QgsColorSchemeList::copyColors()
   //copy colors
   QMimeData* mimeData = QgsSymbolLayerUtils::colorListToMimeData( colorsToCopy );
   QApplication::clipboard()->setMimeData( mimeData );
+}
+
+void QgsColorSchemeList::showImportColorsDialog()
+{
+  QSettings s;
+  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
+  QString filePath = QFileDialog::getOpenFileName( this, tr( "Select palette file" ), lastDir, "GPL (*.gpl);;All files (*.*)" );
+  activateWindow();
+  if ( filePath.isEmpty() )
+  {
+    return;
+  }
+
+  //check if file exists
+  QFileInfo fileInfo( filePath );
+  if ( !fileInfo.exists() || !fileInfo.isReadable() )
+  {
+    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, file does not exist or is not readable" ) );
+    return;
+  }
+
+  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
+  QFile file( filePath );
+  bool importOk = importColorsFromGpl( file );
+  if ( !importOk )
+  {
+    QMessageBox::critical( nullptr, tr( "Invalid file" ), tr( "Error, no colors found in palette file" ) );
+    return;
+  }
+}
+
+void QgsColorSchemeList::showExportColorsDialog()
+{
+  QSettings s;
+  QString lastDir = s.value( "/UI/lastGplPaletteDir", QDir::homePath() ).toString();
+  QString fileName = QFileDialog::getSaveFileName( this, tr( "Palette file" ), lastDir, "GPL (*.gpl)" );
+  activateWindow();
+  if ( fileName.isEmpty() )
+  {
+    return;
+  }
+
+  // ensure filename contains extension
+  if ( !fileName.endsWith( ".gpl", Qt::CaseInsensitive ) )
+  {
+    fileName += ".gpl";
+  }
+
+  QFileInfo fileInfo( fileName );
+  s.setValue( "/UI/lastGplPaletteDir", fileInfo.absolutePath() );
+
+  QFile file( fileName );
+  bool exportOk = exportColorsToGpl( file );
+  if ( !exportOk )
+  {
+    QMessageBox::critical( nullptr, tr( "Error exporting" ), tr( "Error writing palette file" ) );
+    return;
+  }
 }
 
 void QgsColorSchemeList::keyPressEvent( QKeyEvent *event )
@@ -587,22 +647,25 @@ bool QgsColorSchemeModel::insertRows( int row, int count, const QModelIndex& par
   return true;
 }
 
-void QgsColorSchemeModel::addColor( const QColor &color, const QString &label )
+void QgsColorSchemeModel::addColor( const QColor &color, const QString &label, bool allowDuplicate )
 {
   if ( !mScheme || !mScheme->isEditable() )
   {
     return;
   }
 
-  //matches existing color? if so, remove it first
-  QPair< QColor, QString > newColor = qMakePair( color, !label.isEmpty() ? label : QgsSymbolLayerUtils::colorToName( color ) );
-  //if color already exists, remove it
-  int existingIndex = mColors.indexOf( newColor );
-  if ( existingIndex >= 0 )
+  if ( !allowDuplicate )
   {
-    beginRemoveRows( QModelIndex(), existingIndex, existingIndex );
-    mColors.removeAt( existingIndex );
-    endRemoveRows();
+    //matches existing color? if so, remove it first
+    QPair< QColor, QString > newColor = qMakePair( color, !label.isEmpty() ? label : QgsSymbolLayerUtils::colorToName( color ) );
+    //if color already exists, remove it
+    int existingIndex = mColors.indexOf( newColor );
+    if ( existingIndex >= 0 )
+    {
+      beginRemoveRows( QModelIndex(), existingIndex, existingIndex );
+      mColors.removeAt( existingIndex );
+      endRemoveRows();
+    }
   }
 
   int row = rowCount();
@@ -698,7 +761,21 @@ bool QgsColorSwatchDelegate::editorEvent( QEvent *event, QAbstractItemModel *mod
       //item not editable
       return false;
     }
+
     QColor color = index.model()->data( index, Qt::DisplayRole ).value<QColor>();
+
+    QgsPanelWidget* panel = QgsPanelWidget::findParentPanel( qobject_cast< QWidget* >( parent() ) );
+    if ( panel && panel->dockMode() )
+    {
+      QgsCompoundColorWidget* colorWidget = new QgsCompoundColorWidget( panel, color, QgsCompoundColorWidget::LayoutVertical );
+      colorWidget->setPanelTitle( tr( "Select color" ) );
+      colorWidget->setAllowAlpha( true );
+      colorWidget->setProperty( "index", index );
+      connect( colorWidget, SIGNAL( currentColorChanged( QColor ) ), this, SLOT( colorChanged() ) );
+      panel->openPanel( colorWidget );
+      return true;
+    }
+
     QColor newColor = QgsColorDialog::getColor( color, mParent, tr( "Select color" ), true );
     if ( !newColor.isValid() )
     {
@@ -709,4 +786,13 @@ bool QgsColorSwatchDelegate::editorEvent( QEvent *event, QAbstractItemModel *mod
   }
 
   return false;
+}
+
+void QgsColorSwatchDelegate::colorChanged()
+{
+  if ( QgsCompoundColorWidget* colorWidget = qobject_cast< QgsCompoundColorWidget* >( sender() ) )
+  {
+    QModelIndex index = colorWidget->property( "index" ).toModelIndex();
+    const_cast< QAbstractItemModel* >( index.model() )->setData( index, colorWidget->color(), Qt::EditRole );
+  }
 }

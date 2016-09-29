@@ -19,6 +19,7 @@ email                : brush.tyler@gmail.com
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import object
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import QAction, QApplication
@@ -30,7 +31,7 @@ import re
 from . import resources_rc  # NOQA
 
 
-class DBManagerPlugin:
+class DBManagerPlugin(object):
 
     def __init__(self, iface):
         self.iface = iface
@@ -56,7 +57,7 @@ class DBManagerPlugin:
         self.layerAction.setObjectName("dbManagerUpdateSqlLayer")
         self.layerAction.triggered.connect(self.onUpdateSqlLayer)
         self.iface.legendInterface().addLegendLayerAction(self.layerAction, "", "dbManagerUpdateSqlLayer", QgsMapLayer.VectorLayer, False)
-        for l in QgsMapLayerRegistry.instance().mapLayers().values():
+        for l in list(QgsMapLayerRegistry.instance().mapLayers().values()):
             self.onLayerWasAdded(l)
         QgsMapLayerRegistry.instance().layerWasAdded.connect(self.onLayerWasAdded)
 
@@ -78,7 +79,7 @@ class DBManagerPlugin:
             self.dlg.close()
 
     def onLayerWasAdded(self, aMapLayer):
-        if aMapLayer.dataProvider().name() in ['postgres', 'spatialite', 'oracle']:
+        if hasattr(aMapLayer, 'dataProvider') and aMapLayer.dataProvider().name() in ['postgres', 'spatialite', 'oracle']:
             uri = QgsDataSourceUri(aMapLayer.source())
             if re.search('^\(SELECT .+ FROM .+\)$', uri.table(), re.S):
                 self.iface.legendInterface().addLegendLayerActionForLayer(self.layerAction, aMapLayer)

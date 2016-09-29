@@ -21,12 +21,15 @@ The content of this file is based on
  *                                                                         *
  ***************************************************************************/
 """
+from builtins import zip
+from builtins import next
+from builtins import str
 
-from PyQt4.QtCore import Qt, QObject, QSettings, QByteArray, SIGNAL, pyqtSignal
-from PyQt4.QtGui import QDialog, QWidget, QAction, QKeySequence, \
-    QDialogButtonBox, QApplication, QCursor, QMessageBox, QClipboard, QInputDialog, QIcon, QStyledItemDelegate, QStandardItemModel, QStandardItem
-from PyQt4.Qsci import QsciAPIs
-from PyQt4.QtXml import QDomDocument
+from qgis.PyQt.QtCore import Qt, QObject, QSettings, QByteArray, pyqtSignal
+from qgis.PyQt.QtWidgets import QDialog, QWidget, QAction, QDialogButtonBox, QApplication, QMessageBox, QInputDialog, QStyledItemDelegate
+from qgis.PyQt.QtGui import QKeySequence, QCursor, QClipboard, QIcon, QStandardItemModel, QStandardItem
+from qgis.PyQt.Qsci import QsciAPIs
+from qgis.PyQt.QtXml import QDomDocument
 
 from qgis.core import QgsProject, QgsDataSourceUri
 
@@ -84,9 +87,9 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
         self.defaultLayerName = 'QueryLayer'
 
         if self.allowMultiColumnPk:
-            self.uniqueColumnCheck.setText(self.trUtf8("Column(s) with unique values"))
+            self.uniqueColumnCheck.setText(self.tr("Column(s) with unique values"))
         else:
-            self.uniqueColumnCheck.setText(self.trUtf8("Column with unique values"))
+            self.uniqueColumnCheck.setText(self.tr("Column with unique values"))
 
         self.editSql.setFocus()
         self.editSql.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -187,8 +190,8 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
         if query == "":
             return
         name = self.presetName.text()
-        QgsProject.instance().writeEntry('DBManager', 'savedQueries/q' + unicode(name.__hash__()) + '/name', name)
-        QgsProject.instance().writeEntry('DBManager', 'savedQueries/q' + unicode(name.__hash__()) + '/query', query)
+        QgsProject.instance().writeEntry('DBManager', 'savedQueries/q' + str(name.__hash__()) + '/name', name)
+        QgsProject.instance().writeEntry('DBManager', 'savedQueries/q' + str(name.__hash__()) + '/query', query)
         index = self.presetCombo.findText(name)
         if index == -1:
             self.presetCombo.addItem(name)
@@ -198,13 +201,13 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
 
     def deletePreset(self):
         name = self.presetCombo.currentText()
-        QgsProject.instance().removeEntry('DBManager', 'savedQueries/q' + unicode(name.__hash__()))
+        QgsProject.instance().removeEntry('DBManager', 'savedQueries/q' + str(name.__hash__()))
         self.presetCombo.removeItem(self.presetCombo.findText(name))
         self.presetCombo.setCurrentIndex(-1)
 
     def loadPreset(self, name):
-        query = QgsProject.instance().readEntry('DBManager', 'savedQueries/q' + unicode(name.__hash__()) + '/query')[0]
-        name = QgsProject.instance().readEntry('DBManager', 'savedQueries/q' + unicode(name.__hash__()) + '/name')[0]
+        query = QgsProject.instance().readEntry('DBManager', 'savedQueries/q' + str(name.__hash__()) + '/query')[0]
+        name = QgsProject.instance().readEntry('DBManager', 'savedQueries/q' + str(name.__hash__()) + '/name')[0]
         self.editSql.setText(query)
 
     def clearSql(self):
@@ -285,7 +288,7 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
 
         # get a new layer name
         names = []
-        for layer in QgsMapLayerRegistry.instance().mapLayers().values():
+        for layer in list(QgsMapLayerRegistry.instance().mapLayers().values()):
             names.append(layer.name())
 
         layerName = self.layerNameEdit.text()
@@ -337,7 +340,7 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
             self.layer.reload()
             self.iface.actionDraw().trigger()
             self.iface.mapCanvas().refresh()
-            self.iface.legendInterface().refreshLayerSymbology(layer)
+            self.iface.legendInterface().refreshLayerLegend(layer)
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -366,9 +369,9 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
                     break
                 aliasIndex += 1
 
-            sql = u"SELECT * FROM (%s\n) AS %s LIMIT 0" % (unicode(query), connector.quoteId(alias))
+            sql = u"SELECT * FROM (%s\n) AS %s LIMIT 0" % (str(query), connector.quoteId(alias))
         else:
-            sql = u"SELECT * FROM (%s\n) WHERE 1=0" % unicode(query)
+            sql = u"SELECT * FROM (%s\n) WHERE 1=0" % str(query)
 
         c = None
         try:
@@ -479,7 +482,7 @@ class DlgSqlLayerWindow(QWidget, Ui_Dialog):
             dictionary = getSqlDictionary()
 
         wordlist = []
-        for name, value in dictionary.iteritems():
+        for name, value in dictionary.items():
             wordlist += value  # concat lists
         wordlist = list(set(wordlist))  # remove duplicates
 

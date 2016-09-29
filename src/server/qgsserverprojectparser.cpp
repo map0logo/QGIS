@@ -26,6 +26,7 @@
 #include "qgsrasterlayer.h"
 #include "qgseditorwidgetregistry.h"
 #include "qgslayertreegroup.h"
+#include "qgslogger.h"
 
 #include <QDomDocument>
 #include <QFileInfo>
@@ -803,14 +804,14 @@ void QgsServerProjectParser::addLayerProjectSettings( QDomElement& layerElem, QD
       attributeElem.setAttribute( "name", field.name() );
       attributeElem.setAttribute( "type", QVariant::typeToName( field.type() ) );
       attributeElem.setAttribute( "typeName", field.typeName() );
-      QString alias = vLayer->attributeAlias( idx );
+      QString alias = field.alias();
       if ( !alias.isEmpty() )
       {
         attributeElem.setAttribute( "alias", alias );
       }
 
       //edit type to text
-      attributeElem.setAttribute( "editType", vLayer->editFormConfig()->widgetType( idx ) );
+      attributeElem.setAttribute( "editType", vLayer->editFormConfig().widgetType( field.name() ) );
       attributeElem.setAttribute( "comment", field.comment() );
       attributeElem.setAttribute( "length", field.length() );
       attributeElem.setAttribute( "precision", field.precision() );
@@ -1554,10 +1555,11 @@ void QgsServerProjectParser::addValueRelationLayersForLayer( const QgsVectorLaye
 
   for ( int idx = 0; idx < vl->pendingFields().size(); idx++ )
   {
-    if ( vl->editFormConfig()->widgetType( idx ) != "ValueRelation" )
+    const QString name = vl->pendingFields().field( idx ).name();
+    if ( vl->editFormConfig().widgetType( name ) != "ValueRelation" )
       continue;
 
-    QgsEditorWidgetConfig cfg( vl->editFormConfig()->widgetConfig( idx ) );
+    QgsEditorWidgetConfig cfg( vl->editFormConfig().widgetConfig( name ) );
     if ( !cfg.contains( "Layer" ) )
       continue;
 

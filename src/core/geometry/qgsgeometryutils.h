@@ -49,6 +49,21 @@ class CORE_EXPORT QgsGeometryUtils
      */
     static double distanceToVertex( const QgsAbstractGeometry& geom, const QgsVertexId& id );
 
+    /** Retrieves the vertices which are before and after the interpolated point at a specified distance along a linestring
+     * (or polygon boundary).
+     * @param geometry line or polygon geometry
+     * @param distance distance to traverse along geometry
+     * @param previousVertex will be set to previous vertex ID
+     * @param nextVertex will be set to next vertex ID
+     * @note if the distance coincides exactly with a vertex, then both previousVertex and nextVertex will be set to this vertex
+     * @returns true if vertices were successfully retrieved
+     * @note added in QGIS 3.0
+     */
+    static bool verticesAtDistance( const QgsAbstractGeometry& geometry,
+                                    double distance,
+                                    QgsVertexId& previousVertex,
+                                    QgsVertexId& nextVertex );
+
     /** Returns vertices adjacent to a specified vertex within a geometry.
      */
     static void adjacentVertices( const QgsAbstractGeometry& geom, QgsVertexId atVertex, QgsVertexId& beforeVertex, QgsVertexId& afterVertex );
@@ -182,6 +197,19 @@ class CORE_EXPORT QgsGeometryUtils
      * @returns angle in radians. Returned value is undefined if start and end point are the same.
      */
     static double lineAngle( double x1, double y1, double x2, double y2 );
+
+    /** Calculates the angle between the lines AB and BC, where AB and BC described
+     * by points a, b and b, c.
+     * @param x1 x-coordinate of point a
+     * @param y1 y-coordinate of point a
+     * @param x2 x-coordinate of point b
+     * @param y2 y-coordinate of point b
+     * @param x3 x-coordinate of point c
+     * @param y3 y-coordinate of point c
+     * @returns angle between lines in radians. Returned value is undefined if two or more points are equal.
+     */
+    static double angleBetweenThreePoints( double x1, double y1, double x2, double y2,
+                                           double x3, double y3 );
 
     /** Calculates the perpendicular angle to a line joining two points. Returned angle is in radians,
      * clockwise from the north direction.

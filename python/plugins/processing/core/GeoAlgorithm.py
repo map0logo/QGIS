@@ -16,6 +16,8 @@
 *                                                                         *
 ***************************************************************************
 """
+from builtins import str
+from builtins import object
 
 
 __author__ = 'Victor Olaya'
@@ -34,10 +36,13 @@ import copy
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtCore import QCoreApplication, QSettings
 
+from qgis.core import QgsVectorLayer, QgsRasterLayer
+
 from processing.core.ProcessingLog import ProcessingLog
 from processing.core.ProcessingConfig import ProcessingConfig
 from processing.core.GeoAlgorithmExecutionException import GeoAlgorithmExecutionException
 from processing.core.SilentProgress import SilentProgress
+from processing.core.parameters import ParameterExtent
 from processing.core.parameters import ParameterRaster, ParameterVector, ParameterMultipleInput, ParameterTable, Parameter
 from processing.core.outputs import OutputVector, OutputRaster, OutputTable, OutputHTML, Output
 from processing.algs.gdal.GdalUtils import GdalUtils
@@ -46,7 +51,7 @@ from processing.tools.system import setTempOutput
 from processing.algs.help import shortHelp
 
 
-class GeoAlgorithm:
+class GeoAlgorithm(object):
 
     def __init__(self):
         self._icon = QIcon(os.path.dirname(__file__) + '/../images/alg.png')
@@ -198,6 +203,7 @@ class GeoAlgorithm:
             self.setOutputCRS()
             self.resolveTemporaryOutputs()
             self.resolveDataObjects()
+            self.resolveMinCoveringExtent()
             self.checkOutputFileExtensions()
             self.runPreExecutionScript(progress)
             self.processAlgorithm(progress)
@@ -215,7 +221,7 @@ class GeoAlgorithm:
             lines = [self.tr('Uncaught error while executing algorithm')]
             lines.append(traceback.format_exc())
             ProcessingLog.addToLog(ProcessingLog.LOG_ERROR, lines)
-            raise GeoAlgorithmExecutionException(unicode(e) + self.tr('\nSee log for more details'), lines, e)
+            raise GeoAlgorithmExecutionException(str(e) + self.tr('\nSee log for more details'), lines, e)
 
     def _checkParameterValuesBeforeExecuting(self):
         for param in self.parameters:
@@ -288,8 +294,8 @@ class GeoAlgorithm:
                     destFile = out.value
                     crsid = layer.crs().authid()
                     settings = QSettings()
-                    path = unicode(settings.value('/GdalTools/gdalPath', ''))
-                    envval = unicode(os.getenv('PATH'))
+                    path = str(settings.value('/GdalTools/gdalPath', ''))
+                    envval = str(os.getenv('PATH'))
                     if not path.lower() in envval.lower().split(os.pathsep):
                         envval += '%s%s' % (os.pathsep, path)
                         os.putenv('PATH', envval)
@@ -320,7 +326,7 @@ class GeoAlgorithm:
     def getFormatShortNameFromFilename(self, filename):
         ext = filename[filename.rfind('.') + 1:]
         supported = GdalUtils.getSupportedRasters()
-        for name in supported.keys():
+        for name in list(supported.keys()):
             exts = supported[name]
             if ext in exts:
                 return name
@@ -408,6 +414,61 @@ class GeoAlgorithm:
                                 break
                     param.setValue(";".join(inputlayers))
 
+    def canUseAutoExtent(self):
+        for param in self.parameters:
+            if isinstance(param, (ParameterRaster, ParameterVector)):
+                return True
+            if isinstance(param, ParameterMultipleInput):
+                return True
+        return False
+
+    def resolveMinCoveringExtent(self):
+        for param in self.parameters:
+            if isinstance(param, ParameterExtent):
+                if param.value is None:
+                    param.value = self.getMinCoveringExtent()
+
+    def getMinCoveringExtent(self):
+        first = True
+        found = False
+        for param in self.parameters:
+            if param.value:
+                if isinstance(param, (ParameterRaster, ParameterVector)):
+                    if isinstance(param.value, (QgsRasterLayer,
+                                                QgsVectorLayer)):
+                        layer = param.value
+                    else:
+                        layer = dataobjects.getObject(param.value)
+                    if layer:
+                        found = True
+                        self.addToRegion(layer, first)
+                        first = False
+                elif isinstance(param, ParameterMultipleInput):
+                    layers = param.value.split(';')
+                    for layername in layers:
+                        layer = dataobjects.getObject(layername)
+                        if layer:
+                            found = True
+                            self.addToRegion(layer, first)
+                            first = False
+        if found:
+            return '{},{},{},{}'.format(
+                self.xmin, self.xmax, self.ymin, self.ymax)
+        else:
+            return None
+
+    def addToRegion(self, layer, first):
+        if first:
+            self.xmin = layer.extent().xMinimum()
+            self.xmax = layer.extent().xMaximum()
+            self.ymin = layer.extent().yMinimum()
+            self.ymax = layer.extent().yMaximum()
+        else:
+            self.xmin = min(self.xmin, layer.extent().xMinimum())
+            self.xmax = max(self.xmax, layer.extent().xMaximum())
+            self.ymin = min(self.ymin, layer.extent().yMinimum())
+            self.ymax = max(self.ymax, layer.extent().yMaximum())
+
     def checkInputCRS(self):
         """It checks that all input layers use the same CRS. If so,
         returns True. False otherwise.
@@ -482,9 +543,9 @@ class GeoAlgorithm:
     def __str__(self):
         s = 'ALGORITHM: ' + self.name + '\n'
         for param in self.parameters:
-            s += '\t' + unicode(param) + '\n'
+            s += '\t' + str(param) + '\n'
         for out in self.outputs:
-            s += '\t' + unicode(out) + '\n'
+            s += '\t' + str(out) + '\n'
         s += '\n'
         return s
 

@@ -76,6 +76,13 @@ void QgsRasterTransparencyWidget::syncToLayer()
   QgsRasterRenderer* renderer = mRasterLayer->renderer();
   if ( provider )
   {
+    if ( provider->dataType( 1 ) == Qgis::ARGB32
+         || provider->dataType( 1 ) == Qgis::ARGB32_Premultiplied )
+    {
+      gboxNoDataValue->setEnabled( false );
+      gboxCustomTransparency->setEnabled( false );
+    }
+
     cboxTransparencyBand->addItem( tr( "None" ), -1 );
     int nBands = provider->bandCount();
     QString bandName;
@@ -244,7 +251,7 @@ void QgsRasterTransparencyWidget::on_pbnExportTransparentPixelValues_clicked()
     }
 
     QFile myOutputFile( myFileName );
-    if ( myOutputFile.open( QFile::WriteOnly ) )
+    if ( myOutputFile.open( QFile::WriteOnly | QIODevice::Truncate ) )
     {
       QTextStream myOutputStream( &myOutputFile );
       myOutputStream << "# " << tr( "QGIS Generated Transparent Pixel Value Export File" ) << '\n';
@@ -395,7 +402,7 @@ void QgsRasterTransparencyWidget::apply()
   QgsRasterRenderer* rasterRenderer = mRasterLayer->renderer();
   if ( rasterRenderer )
   {
-    rasterRenderer->setAlphaBand( cboxTransparencyBand->itemData( cboxTransparencyBand->currentIndex() ).toInt() );
+    rasterRenderer->setAlphaBand( cboxTransparencyBand->currentData().toInt() );
 
     //Walk through each row in table and test value. If not valid set to 0.0 and continue building transparency list
     QgsRasterTransparency* rasterTransparency = new QgsRasterTransparency();

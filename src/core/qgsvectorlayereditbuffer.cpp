@@ -20,7 +20,6 @@
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
 
-
 //! populate two lists (ks, vs) from map - in reverse order
 template <class Key, class T> void mapToReversedLists( const QMap< Key, T >& map, QList<Key>& ks, QList<T>& vs )
 {
@@ -54,7 +53,7 @@ bool QgsVectorLayerEditBuffer::isModified() const
 
 void QgsVectorLayerEditBuffer::undoIndexChanged( int index )
 {
-  QgsDebugMsg( QString( "undo index changed %1" ).arg( index ) );
+  QgsDebugMsgLevel( QString( "undo index changed %1" ).arg( index ), 4 );
   Q_UNUSED( index );
   emit layerModified();
 }
@@ -65,12 +64,12 @@ void QgsVectorLayerEditBuffer::updateFields( QgsFields& fields )
   // delete attributes from the higher indices to lower indices
   for ( int i = mDeletedAttributeIds.count() - 1; i >= 0; --i )
   {
-    fields.remove( mDeletedAttributeIds[i] );
+    fields.remove( mDeletedAttributeIds.at( i ) );
   }
   // add new fields
   for ( int i = 0; i < mAddedAttributes.count(); ++i )
   {
-    fields.append( mAddedAttributes[i], QgsFields::OriginEdit, i );
+    fields.append( mAddedAttributes.at( i ), QgsFields::OriginEdit, i );
   }
   // rename fields
   QgsFieldNameMap::const_iterator renameIt = mRenamedAttributes.constBegin();
@@ -150,17 +149,26 @@ bool QgsVectorLayerEditBuffer::addFeatures( QgsFeatureList& features )
 bool QgsVectorLayerEditBuffer::deleteFeature( QgsFeatureId fid )
 {
   if ( !( L->dataProvider()->capabilities() & QgsVectorDataProvider::DeleteFeatures ) )
+  {
+    QgsDebugMsg( "Cannot delete features (missing DeleteFeature capability)" );
     return false;
+  }
 
   if ( FID_IS_NEW( fid ) )
   {
     if ( !mAddedFeatures.contains( fid ) )
+    {
+      QgsDebugMsg( "Cannot delete features (in the list of added features)" );
       return false;
+    }
   }
   else // existing feature
   {
     if ( mDeletedFeatureIds.contains( fid ) )
+    {
+      QgsDebugMsg( "Cannot delete features (in the list of deleted features)" );
       return false;
+    }
   }
 
   L->undoStack()->push( new QgsVectorLayerUndoCommandDeleteFeature( this, fid ) );
@@ -170,12 +178,16 @@ bool QgsVectorLayerEditBuffer::deleteFeature( QgsFeatureId fid )
 bool QgsVectorLayerEditBuffer::deleteFeatures( const QgsFeatureIds& fids )
 {
   if ( !( L->dataProvider()->capabilities() & QgsVectorDataProvider::DeleteFeatures ) )
+  {
+    QgsDebugMsg( "Cannot delete features (missing DeleteFeatures capability)" );
     return false;
+  }
 
+  bool ok = true;
   Q_FOREACH ( QgsFeatureId fid, fids )
-    deleteFeature( fid );
+    ok = deleteFeature( fid ) && ok;
 
-  return true;
+  return ok;
 }
 
 

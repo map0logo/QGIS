@@ -131,12 +131,10 @@ void QgsAuthSslConfigWidget::setUpSslConfigTree()
   // add config field names
   mProtocolItem = addRootItem( tr( "Protocol" ) );
   mProtocolCmbBx = new QComboBox( treeSslConfig );
-#if QT_VERSION >= 0x040800
   mProtocolCmbBx->addItem( QgsAuthCertUtils::getSslProtocolName( QSsl::SecureProtocols ),
                            ( int )QSsl::SecureProtocols );
   mProtocolCmbBx->addItem( QgsAuthCertUtils::getSslProtocolName( QSsl::TlsV1SslV3 ),
                            ( int )QSsl::TlsV1SslV3 );
-#endif
   mProtocolCmbBx->addItem( QgsAuthCertUtils::getSslProtocolName( QSsl::TlsV1 ),
                            ( int )QSsl::TlsV1 );
   mProtocolCmbBx->addItem( QgsAuthCertUtils::getSslProtocolName( QSsl::SslV3 ),
@@ -354,7 +352,7 @@ QSsl::SslProtocol QgsAuthSslConfigWidget::sslProtocol()
   {
     return QSsl::UnknownProtocol;
   }
-  return ( QSsl::SslProtocol )mProtocolCmbBx->itemData( mProtocolCmbBx->currentIndex() ).toInt();
+  return ( QSsl::SslProtocol )mProtocolCmbBx->currentData().toInt();
 }
 
 void QgsAuthSslConfigWidget::setSslProtocol( QSsl::SslProtocol protocol )
@@ -477,7 +475,7 @@ QSslSocket::PeerVerifyMode QgsAuthSslConfigWidget::sslPeerVerifyMode()
   {
     return QSslSocket::AutoVerifyPeer;
   }
-  return ( QSslSocket::PeerVerifyMode )mVerifyPeerCmbBx->itemData( mVerifyPeerCmbBx->currentIndex() ).toInt();
+  return ( QSslSocket::PeerVerifyMode )mVerifyPeerCmbBx->currentData().toInt();
 }
 
 int QgsAuthSslConfigWidget::sslPeerVerifyDepth()
